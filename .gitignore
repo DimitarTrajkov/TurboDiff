@@ -1,0 +1,17 @@
+# =========================
+# Ignore EVERYTHING by default
+# =========================
+*
+
+# =========================
+# Allow only Python files
+# =========================
+!*.py
+!*/
+!.gitignore
+
+angela_MNLP.py
+# =========================
+# (Optional safety) keep folder structure
+# =========================
+!*/
