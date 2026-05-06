@@ -291,6 +291,7 @@ def evaluate_metrics(model, schedule, dataloader, device, num_samples=50000, eva
         fid.update(real_imgs_uint8, real=True)
         real_processed += batch.shape[0]
         couter -=1
+        print(f"Processed {real_processed}/{num_samples} real images... ({couter} batches left)", end='\r')
         del batch
         del real_imgs_uint8
 
@@ -316,6 +317,7 @@ def evaluate_metrics(model, schedule, dataloader, device, num_samples=50000, eva
             
         fake_processed += current_batch_size
         couter -=1
+        print(f"Processed {fake_processed}/{num_samples} fake images... ({couter} batches left)", end='\r')
         del fake_imgs
         del fake_imgs_uint8
 
@@ -470,8 +472,9 @@ if __name__ == '__main__':
                 best_is = curr_is
                 torch.save(ema_model.state_dict(), "uvit_12th_best.pt")
                 
+    # ema_model.load_state_dict(torch.load("uvit_12th_best.pt", map_location=device))               
     torch.save(ema_model.state_dict(), f"uvit_12th_final.pt")
-    # evaluate_metrics(ema_model, schedule, dataloader, device, num_samples=2048, steps=500, epoch="final_eval_12th")
+    evaluate_metrics(ema_model, schedule, dataloader, device, num_samples=50_000, steps=30, epoch="final_eval_12th_50_000")
     
 # poch 194/800: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 390/390 [01:43<00:00,  3.78it/s, Loss=0.0238, LR=2.82e-04]
 # Epoch 195/800: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 390/390 [01:41<00:00,  3.83it/s, Loss=0.0220, LR=2.82e-04]
@@ -520,3 +523,13 @@ if __name__ == '__main__':
 # Epoch 234/800: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 390/390 [02:01<00:00,  3.21it/s, Loss=0.0244, LR=2.67e-04]
 # Epoch 235/800: 100%|███████████████████████████████████████████████████████████████████████████████████████████████████| 390/390 [01:57<00:00,  3.32it/s, Loss=0.0252, LR=2.67e-04]
 # Epoch 237/800: 100%|██████████████████████████████████████████████████████████████████████████████████████| 390/390 [01:43<00:00,  3.75it/s, Loss=0.0272, LR=2.66e-04]
+
+
+
+
+# --- Evaluating with 50000 samples ---
+# C:\Users\Dimitar Trajkov\anaconda3\Lib\site-packages\torchmetrics\utilities\prints.py:43: UserWarning: Metric `InceptionScore` will save all extracted features in buffer. For large datasets this may lead to large memory footprint.
+#   warnings.warn(*args, **kwargs)
+# Total Generation Time: 1836.6725 secondsbatches left))))
+# FID Score: 27.6506
+# Inception Score: 7.2447 ± 0.1092
