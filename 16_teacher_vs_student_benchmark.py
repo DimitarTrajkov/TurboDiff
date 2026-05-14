@@ -239,24 +239,24 @@ def run_all_benchmarks():
     # ---------------------------------------------------------
     teacher_pipe.scheduler = DDIMScheduler.from_config(teacher_pipe.scheduler.config)
     
-    evaluate_metrics(
-        name="Teacher (DDIM 5-Steps)",
-        generation_fn=lambda b: generate_diffusers_pipeline(teacher_pipe, b, 5, device),
-        dataloader=dataloader,
-        device=device,
-        num_samples=NUM_SAMPLES,
-        eval_batch_size=EVAL_BATCH_SIZE
-    )
+    # evaluate_metrics(
+    #     name="Teacher (DDIM 5-Steps)",
+    #     generation_fn=lambda b: generate_diffusers_pipeline(teacher_pipe, b, 5, device),
+    #     dataloader=dataloader,
+    #     device=device,
+    #     num_samples=NUM_SAMPLES,
+    #     eval_batch_size=EVAL_BATCH_SIZE
+    # )
 
     # ---------------------------------------------------------
     # TEST 3: Student (Consistency 1 Step)
     # ---------------------------------------------------------
-    # print("\nLoading Student Weights...")
-    # # Load your trained weights into the UNet
-    # student_unet = teacher_pipe.unet
-    # # Make sure to point this to your best saved checkpoint
-    # student_unet.load_state_dict(torch.load("student_unet_epoch_50.pt", weights_only=True))
-    # student_unet.eval()
+    print("\nLoading Student Weights...")
+    # Load your trained weights into the UNet
+    student_unet = teacher_pipe.unet
+    # Make sure to point this to your best saved checkpoint
+    student_unet.load_state_dict(torch.load("student_unet_epoch_50.pt", weights_only=True))
+    student_unet.eval()
 
     # evaluate_metrics(
     #     name="Student (Consistency 1-Step)",
@@ -267,34 +267,34 @@ def run_all_benchmarks():
     #     eval_batch_size=EVAL_BATCH_SIZE
     # )
     
-    # evaluate_metrics(
-    #     name="Student (Consistency 5-Step) 50 epochs",
-    #     generation_fn=lambda b: generate_consistency_student_multistep(student_unet, teacher_pipe.scheduler, b, device, steps=5),
-    #     dataloader=dataloader,
-    #     device=device,
-    #     num_samples=NUM_SAMPLES,
-    #     eval_batch_size=EVAL_BATCH_SIZE
-    # )
+    evaluate_metrics(
+        name="Student (Consistency 3-Step) 50 epochs",
+        generation_fn=lambda b: generate_consistency_student_multistep(student_unet, teacher_pipe.scheduler, b, device, steps=3),
+        dataloader=dataloader,
+        device=device,
+        num_samples=NUM_SAMPLES,
+        eval_batch_size=EVAL_BATCH_SIZE
+    )
 
 if __name__ == "__main__":
     run_all_benchmarks()
     
-    
+
+# --- RESULTS: Student (Consistency 1-Step) 10 epochs ---
+# Total Gen Time:  54.5914 seconds
+# Throughput:      183.18 images/sec
+# FID Score:       180.1839
+# Inception Score: 2.9810 ± 0.0626
+
+
+  
 # --- RESULTS: Teacher (DDIM 30-Steps) ---
 # Total Gen Time:  696.4523 seconds
 # Throughput:      14.36 images/sec
 # FID Score:       17.4852
 # Inception Score: 8.0185 ± 0.2179
 
-# epoch 10:
-# --- RESULTS: Student (Consistency 1-Step) ---
-# Total Gen Time:  54.5914 seconds
-# Throughput:      183.18 images/sec
-# FID Score:       180.1839
-# Inception Score: 2.9810 ± 0.0626
-
-# epoch 50:
-# --- RESULTS: Student (Consistency 1-Step) ---
+# --- RESULTS: Student (Consistency 1-Step) 50 epochs ---
 # Total Gen Time:  678.7939 seconds
 # Throughput:      14.73 images/sec
 # FID Score:       128.3690
@@ -314,16 +314,8 @@ if __name__ == "__main__":
 # Inception Score: 5.7746 ± 0.1431
 
 
-
-# --- RESULTS: Student (Consistency 5-Step) 50 epochs ---
-# Total Gen Time:  129.1213 seconds
-# Throughput:      77.45 images/sec
-# FID Score:       45.7476
-# Inception Score: 6.8083 ± 0.1399
-
-
-# --- RESULTS: Teacher (DDIM 5-Steps) ---
-# Total Gen Time:  142.7558 seconds
-# Throughput:      70.05 images/sec
-# FID Score:       64.7380
-# Inception Score: 5.7746 ± 0.1431
+# --- RESULTS: Student (Consistency 30-Step) 50 epochs ---
+# Total Gen Time:  683.9642 seconds
+# Throughput:      14.62 images/sec
+# FID Score:       42.3980
+# Inception Score: 6.5697 ± 0.1575
