@@ -334,7 +334,7 @@ def test_saved_model(checkpoint_path="student_unet_phase1_complete.pt", batch_si
     
     # 2. Initialize Student architecture (MUST match the one used during training)
     student_config = teacher_pipe.unet.config.copy()
-    student_config["block_out_channels"] = (64, 128, 128, 128) # Matches your training
+    student_config["block_out_channels"] = (64, 128, 128, 128) # Matches your training 128 256 512 512
     student_unet = UNet2DModel.from_config(student_config).to(device)
 
     # 3. Load the weights
