@@ -6,7 +6,7 @@
 ## Introduction
 
 ## Related Works
-- foundational papers: [5,7]
+- foundational papers: [5,7], https://huggingface.co/google/ddpm-cifar10-32
 - distillation techniques: [1, 2, 3, 4]
 - sampling algorithms: [6]
 
@@ -14,6 +14,9 @@
 > Anatomical Guidance Integration: Formulate and integrate an algorithmic improvement (e.g., DDIM sampling
 strategy, a latent-space approach, progressive distillation, or something new!) aimed at accelerating inference
 or training.
+
+1. Progressive Distillation 
+
 ## Results
 > Downstream Impact Evaluation: Quantify the speed-up factor and compare the visual quality and quantitative
 metrics of the accelerated model against the baseline.
