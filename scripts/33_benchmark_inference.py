@@ -220,6 +220,9 @@ def write_csv(path, rows):
 def configure_device(device, args):
     """Apply backend flags and print a header line for the chosen device."""
     if device.type == "cuda":
+        # Pin the active device so CUDA events, streams and kernels all live on it
+        # (otherwise Event.record() defaults to cuda:0 and elapsed_time() fails).
+        torch.cuda.set_device(device)
         # Autotune kernels for the fixed input shapes; allow TF32 on Ada (fp32 path).
         torch.backends.cudnn.benchmark = True
         torch.backends.cuda.matmul.allow_tf32 = True
