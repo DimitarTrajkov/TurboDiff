@@ -111,8 +111,14 @@ def precompute_steps(alphas, n_steps, batch, device):
     return t_batches, a_s_list, a_e_list
 
 
+@torch.inference_mode()
 def denoise(model, x0, t_batches, a_s_list, a_e_list, autocast):
-    """Full multi-step DDIM denoise. x0 is never mutated in place, so it can be reused."""
+    """Full multi-step DDIM denoise. x0 is never mutated in place, so it can be reused.
+
+    inference_mode() disables autograd: without it PyTorch retains activations for
+    the whole multi-step rollout, which both inflates memory (premature OOM) and is
+    meaningless for an inference-time benchmark.
+    """
     x = x0
     with autocast:
         for i in range(len(t_batches)):
