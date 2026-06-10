@@ -7,9 +7,11 @@
 # Allow only Python files
 # =========================
 !*.py
+!*.md
 !*/
 !.gitignore
 
+!/notebook.ipynb
 angela_MNLP.py
 # =========================
 # (Optional safety) keep folder structure
