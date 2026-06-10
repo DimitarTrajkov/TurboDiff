@@ -11,8 +11,10 @@
 !*/
 !.gitignore
 
+!docs/
+!docs/**
+
 !/notebook.ipynb
-angela_MNLP.py
 # =========================
 # (Optional safety) keep folder structure
 # =========================
