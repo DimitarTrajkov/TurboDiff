@@ -36,23 +36,29 @@ To evaluate the results obtained, we conducted two different studies. The first 
 > Downstream Impact Evaluation: Quantify the speed-up factor and compare the visual quality and quantitative
 metrics of the accelerated model against the baseline.
 
-For this experimentation
+For this experiment, we evaluate the speed-up factor of different setups across varying batch sizes using an NVIDIA RTX 5000 Ada Generation GPU. Detailed results for all batch sizes are provided in Appendix A.3. In subsequent experiments, the speed-up factor is defined relative to a batch size of 32.
+
+After quantifying the speed-up factor, we compute the FID and IS for each model and compare the results (see Table 2).
 
 
 | Method | Steps | Speed-up factor | FID | IS |
 |--------|-------|-----------------|-----|-----|
 | **DDPM** | 1000 | x1 | - | - |
-| **DDIM** | 25 | - | - | - |
-| **DDIM + Progressive Distillation** | 25 | - | - | - |
-| | 12 | - | - | - |
-| | 8 | - | - | - |
+| **DDIM** | 25 | - | 16.3709 | 8.1425 ± 0.2514 |
+| **DDIM + Progressive Distillation** | 25 | - | 14.1555 | 8.3367 ± 0.3336 |
+| | 12 | - | 12.9952 | 8.4135 ± 0.2914 |
+| | 8 | - | 15.9995 | 8.6021 ± 0.4500 |
+
+*Table 2: Speed-up factor and quantitative metrics comparison*
+
+> analyze the results!!!!
 
 
+As for the visual quality
 
-
+as for the visual quality, ...
 
 - a figure with some pictures for each number of steps
-- WITHOUT DDIM!!! just base DDPM
 
 
 
@@ -112,7 +118,7 @@ TO BE DELETED IF NOT MENTIONED
 [5] Karras, T., Aittala, M., Aila, T., & Laine, S. "Elucidating the Design Space of Diffusion-Based Generative Models." NeurIPS 2022.
 
 ## Abstract
-### A.1 Evaluation
+### A.1 FID and IS scores
 - evaluation methods specifics (how are FID and IS computed)
 - flaws and differences to other standards?
 
@@ -120,4 +126,34 @@ TO BE DELETED IF NOT MENTIONED
 - describe other approaches
 - considered other approachers (e.g latent space), but since our data (CIFAR-10) is so small it did not make sense
 
-TO MENTION: https://huggingface.co/google/ddpm-cifar10-32
+### A.3 Inference-Time Benchmark
+For the evaluation of inference time for each model, we perform 10 warm-up runs followed by 50 measured runs per configuration. After collecting the results, we compute the median execution time across the 50 measured runs, as well as the milliseconds per image and images per second metrics (see Table X). All experiments are conducted on a single NVIDIA RTX 5000 Ada Generation GPU.
+
+| model       | steps | batch | median (ms) | ms/img  | img/s |
+|-------------|-------|-------|-------------|---------|--------|
+| **DDIM + Progressive Distillation**  | 25    | 1     | 111.22      | 111.219 | 9.0    |
+|   |     | 2     | 113.54      | 56.768  | 17.6   |
+|   |     | 4     | 114.64      | 28.659  | 34.9   |
+|   |     | 8     | 113.12      | 14.140  | 70.7   |
+|   |     | 16    | 172.97      | 10.811  | 92.5   |
+|   |     | 32    | 310.40      | 9.700   | 103.1  |
+|   |      | 64    | 697.32      | 10.896  | 91.8   |
+| **DDIM + Progressive Distillation**  | 12    | 1     | 53.74       | 53.738  | 18.6   |
+|   |     | 2     | 54.31       | 27.157  | 36.8   |
+|   |    | 4     | 54.89       | 13.723  | 72.9   |
+|  |   | 8     | 54.44       | 6.805   | 146.9  |
+|   |   | 16    | 85.30       | 5.331   | 187.6  |
+|   |    | 32    | 149.75      | 4.680   | 213.7  |
+|  |   | 64    | 315.03      | 4.922   | 203.2  |
+| **DDIM + Progressive Distillation**    | 8     | 1     | 35.86       | 35.860  | 27.9   |
+|  |     | 2     | 36.89       | 18.443  | 54.2   |
+|  |    | 4     | 36.94       | 9.235   | 108.3  |
+|  |  | 8     | 36.95       | 4.619   | 216.5  |
+|  |    | 16    | 57.56       | 3.598   | 278.0  |
+|  |    | 32    | 101.10      | 3.159   | 316.5  |
+|  |     | 64    | 212.76      | 3.324   | 300.8  |
+*Table X: Diffusion model acceleration pipeline*
+
+> Change table name here and in the text that references it
+
+As observed, execution benefits from parallelism within the GPU, leading to a progressive increase in throughput (images/s), which peaks at a batch size of 32.
