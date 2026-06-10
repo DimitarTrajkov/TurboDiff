@@ -1,39 +1,42 @@
-## Lightweight Diffusion Models <br><sub>Accelerating Training/Inference for Resource-Constrained Environments</sub>
+## Lightweight Diffusion Models <br><sub>Accelerating Inference for Resource-Constrained Environments</sub>
 
+- image of a batch of generated images on CIFAR-10
 
-## Abstract
+## Overview
 
-## 1. Introduction
+Denoising Diffusion Probabilistic Models (DDPMs) [3] achieve state-of-the-art results in image
+generation, but their iterative sampling process is notoriously slow and computationally expensive.
 
-## 2. Related Works
-- foundational papers: [3], https://huggingface.co/google/ddpm-cifar10-32
-- distillation techniques: [1]
-- sampling algorithms: [2]
+This project investigates methods for accelerating inference in diffusion models trained on CIFAR-10 while preserving generation quality. In particular, it focuses on Progressive Distillation, a technique that transfers the behavior of a multi-step diffusion sampler into a model requiring significantly fewer inference steps.
 
-## 3. Proposed Methods
-> Anatomical Guidance Integration: Formulate and integrate an algorithmic improvement (e.g., DDIM sampling
-strategy, a latent-space approach, progressive distillation, or something new!) aimed at accelerating inference
-or training.
+The implementation and experiments in this repository are primarily based on the following works:
 
-The original model: DDPM, 1000 steps
-After DDIM swap (free, no training): same weights, ~25–30 steps, quality slightly drops
-After progressive distillation (fine-tuning): same architecture, 25 → 12 → 8 steps, quality is partially recovered because the model is now trained to be accurate at those specific step counts
+- **DDPM** [3]: foundational diffusion model formulation.
+- **DDIM** [2]: deterministic and efficient sampling procedure.
+- **Progressive Distillation** [1]: iterative reduction of sampling steps through knowledge distillation.
 
-- DDIM as the sampler + progressive distillation to compensate for quality loss at fewer steps
-- DDIM
-- progressive distillation
-- considered other approachers (e.g latent space), but since our data (CIFAR-10) is so small it did not make sense
+The goal is to analyze the trade-off between inference speed and sample quality as the number of denoising steps is progressively reduced.
 
-1. Progressive Distillation 
+## Methodology
+
+While multiple approaches have been tested, we ultimately reached the highest performance when using a combination of Denoising Diffusion Implicit Models (DDIM) [2] and Progressive Distillation [1]. This work focuses mainly on the combination of the latter, but all the approaches implemented can be found in Appendix A.2.
+
+More concretely, we started off with the official Google implementation of the DDPM paper [4], which uses 1000 sampling steps, and built a DDIM sampling procedure on top of it. This allowed us to reduce the number of steps to roughly 25–30 without retraining the model and with only a minor sacrifice in performance. Once we achieved that, we iteratively reduced the number of steps through Progressive Distillation, first training a 25-step student model on the base DDPM with DDIM sampling, and then moving down to 12 and 8 steps (see Figure 1). Our fastest model achieves a [TO INSERT THE SPEEDUP] speedup during inference, while maintaining an FID of 15.9995 and an IS of 8.6021. A detailed description of how the IS and FID scores are computed can be found in Appendix A.1.
+
+![Pipeline](docs/diagram.png)
+
+*Figure 1: Diffusion model acceleration pipeline*
+
 
 ## 4. Results
+
+To evaluate the results obtained, we conducted two different studies. The first one is a Downstream Impact Evaluation (Section 4.1), where we quantify the speed-up factor and compare the visual quality and quantitative metrics of the accelerated model against the baseline. The second is a Fidelity vs. Diversity study (Section 4.2), where we conduct an ablation study on the number of sampling steps for each method. There, we analyze how the proposed efficiency method handles severe step reductions compared to the standard DDPM schedule, i.e., we evaluate its behavior under stress.
 
 ### 4.1 Downstream Impact Evaluation
 > Downstream Impact Evaluation: Quantify the speed-up factor and compare the visual quality and quantitative
 metrics of the accelerated model against the baseline.
 
-- question we want to address: Quantify the speed-up factor and compare the visual quality and quantitative
-metrics of the accelerated model against the baseline.
+For this experimentation
 
 
 | Method | Steps | Speed-up factor | FID | IS |
@@ -47,6 +50,7 @@ metrics of the accelerated model against the baseline.
 
 
 
+
 - a figure with some pictures for each number of steps
 - WITHOUT DDIM!!! just base DDPM
 
@@ -54,6 +58,8 @@ metrics of the accelerated model against the baseline.
 
 
 ### 4.2 Fidelity vs. Diversity Study
+
+- DDIM as the sampler + progressive distillation to compensate for quality loss at fewer steps
 
 
 > Fidelity vs. Diversity Study : Conduct an ablation study on the number of sampling steps (e.g., T = 1000 vs.
@@ -91,6 +97,9 @@ The point is to show the shape of the degradation curve: standard DDPM falls apa
 
 [3] Ho, J., Jain, A., & Abbeel, P. "Denoising Diffusion Probabilistic Models." NeurIPS 2020.
 
+[4] Google Research. "DDPM CIFAR-10 32x32." Hugging Face Model Hub.
+https://huggingface.co/google/ddpm-cifar10-32
+
 ----
 TO BE DELETED IF NOT MENTIONED
 
@@ -102,3 +111,13 @@ TO BE DELETED IF NOT MENTIONED
 
 [5] Karras, T., Aittala, M., Aila, T., & Laine, S. "Elucidating the Design Space of Diffusion-Based Generative Models." NeurIPS 2022.
 
+## Abstract
+### A.1 Evaluation
+- evaluation methods specifics (how are FID and IS computed)
+- flaws and differences to other standards?
+
+### A.2 Other approaches
+- describe other approaches
+- considered other approachers (e.g latent space), but since our data (CIFAR-10) is so small it did not make sense
+
+TO MENTION: https://huggingface.co/google/ddpm-cifar10-32
