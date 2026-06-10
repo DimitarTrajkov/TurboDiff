@@ -40,35 +40,40 @@ Usage:
 
 import argparse
 import contextlib
-import glob
-import os
+import functools
 import time
 
 import numpy as np
 import torch
 
-from ddpm_arch import UNet2DModel, linear_alphas_cumprod, ddim_step, WEIGHTS_PATH
+from ddpm_arch import UNet2DModel, linear_alphas_cumprod, ddim_step
 
 
-def resolve_base_weights():
-    """Find the cached google/ddpm-cifar10-32 weights (.safetensors or .bin, any snapshot)."""
-    base_dir = os.path.expanduser(
-        "~/.cache/huggingface/hub/models--google--ddpm-cifar10-32/snapshots")
+@functools.lru_cache(maxsize=1)
+def fetch_base_weights():
+    """Download (or reuse the cache of) google/ddpm-cifar10-32 weights from the HF hub."""
+    from huggingface_hub import hf_hub_download
     for fn in ("diffusion_pytorch_model.safetensors", "diffusion_pytorch_model.bin"):
-        hits = sorted(glob.glob(os.path.join(base_dir, "*", fn)))
-        if hits:
-            return hits[0]
-    return WEIGHTS_PATH  # fall back to the imported .bin path (skipped if absent)
+        try:
+            return hf_hub_download("google/ddpm-cifar10-32", fn)
+        except Exception:                                    # noqa: BLE001 (try next filename)
+            continue
+    raise FileNotFoundError("could not fetch google/ddpm-cifar10-32 weights from the HF hub")
 
 
-# Each entry: (label, checkpoint_path, native_inference_steps).
-# All share the same UNet architecture, so per-forward cost is identical; total
-# latency scales with steps x batch. Missing checkpoints are skipped with a note.
+# Each entry: (label, weights, native_inference_steps, sampler).
+#   weights : a checkpoint path, or a callable returning one (used to lazily fetch
+#             the base model from the HF hub only when it is actually benchmarked).
+#   sampler : "ddpm" = the original stochastic ancestral process (no DDIM shortcut);
+#             "ddim" = deterministic few-step sampler.
+# All entries share one UNet, so per-forward cost is identical; total latency
+# scales with steps x batch.
 MODELS = [
-    ("base-google", resolve_base_weights(),                     30),
-    ("student-25",  "./checkpoints/fast_professor_21_final.pt", 25),
-    ("student-12",  "./checkpoints/fast_professor_12step.pt",   12),
-    ("student-8",   "./checkpoints/fast_professor_8step.pt",     8),
+    ("base-ddpm-1000", fetch_base_weights, 1000, "ddpm"),
+    ("base-ddim-25",   fetch_base_weights,   25, "ddim"),
+    ("student-25", "./checkpoints/fast_professor_21_final.pt", 25, "ddim"),
+    ("student-12", "./checkpoints/fast_professor_12step.pt",   12, "ddim"),
+    ("student-8",  "./checkpoints/fast_professor_8step.pt",     8, "ddim"),
 ]
 
 DEFAULT_BATCH_SIZES = [1, 2, 4, 8, 16, 32, 64, 128, 256]
@@ -131,8 +136,43 @@ def denoise(model, x0, t_batches, a_s_list, a_e_list, autocast):
     return x
 
 
+def precompute_ddpm(alphas, batch, device, num_steps=NUM_TRAIN_TIMESTEPS):
+    """
+    Pre-build the DDPM ancestral-sampling constants for every integer timestep
+    (num_steps-1 .. 0), so the timed loop has no host<->device syncs. Mirrors a
+    linear-beta DDPM with variance_type=fixed_large, clip_sample=True.
+    """
+    one = torch.tensor(1.0, device=device)
+    t_batches, consts = [], []
+    for t in range(num_steps - 1, -1, -1):
+        a_t = alphas[t]
+        a_prev = alphas[t - 1] if t > 0 else one
+        beta_t = 1 - a_t / a_prev
+        coef1 = a_prev.sqrt() * beta_t / (1 - a_t)
+        coef2 = (a_t / a_prev).sqrt() * (1 - a_prev) / (1 - a_t)
+        t_batches.append(torch.full((batch,), t, device=device, dtype=torch.long))
+        consts.append((a_t.view(1, 1, 1, 1), beta_t.view(1, 1, 1, 1),
+                       coef1.view(1, 1, 1, 1), coef2.view(1, 1, 1, 1), t > 0))
+    return t_batches, consts
+
+
+@torch.inference_mode()
+def denoise_ddpm(model, x0, t_batches, consts, autocast):
+    """Original stochastic DDPM reverse process (no DDIM shortcut) — fresh noise per step."""
+    x = x0
+    with autocast:
+        for i in range(len(t_batches)):
+            eps = model(x, t_batches[i])
+            a_t, beta_t, coef1, coef2, add_noise = consts[i]
+            x0_pred = ((x - (1 - a_t).sqrt() * eps) / a_t.sqrt()).clamp(-1, 1)
+            x = coef1 * x0_pred + coef2 * x
+            if add_noise:
+                x = x + beta_t.sqrt() * torch.randn_like(x)
+    return x
+
+
 def time_config(model, alphas, n_steps, batch, device, dtype,
-                warmup, timed):
+                warmup, timed, sampler):
     """Return a dict of latency stats (ms) for one (model, steps, batch) config."""
     use_cuda = device.type == "cuda"
     autocast = (torch.autocast(device_type="cuda", dtype=dtype)
@@ -142,11 +182,24 @@ def time_config(model, alphas, n_steps, batch, device, dtype,
         torch.cuda.reset_peak_memory_stats(device)
 
     noise = torch.randn(batch, 3, 32, 32, device=device)     # allocated once, outside timer
-    t_batches, a_s_list, a_e_list = precompute_steps(alphas, n_steps, batch, device)
 
-    # Per-configuration warm-up (autotuning, allocation, clock ramp).
+    # Build the sampler-specific per-step constants, then a zero-arg `run` closure.
+    if sampler == "ddpm":
+        t_batches, consts = precompute_ddpm(alphas, batch, device, n_steps)
+        def run():
+            return denoise_ddpm(model, noise, t_batches, consts, autocast)
+    else:
+        t_batches, a_s_list, a_e_list = precompute_steps(alphas, n_steps, batch, device)
+        def run():
+            return denoise(model, noise, t_batches, a_s_list, a_e_list, autocast)
+
+    # A many-step generation already absorbs warm-up costs and has tiny run-to-run
+    # variance, so cap repeats to keep total forwards (and wall time) bounded.
+    if n_steps > 100:
+        warmup, timed = min(warmup, 2), min(timed, 5)
+
     for _ in range(warmup):
-        denoise(model, noise, t_batches, a_s_list, a_e_list, autocast)
+        run()
     if use_cuda:
         torch.cuda.synchronize(device)
 
@@ -157,13 +210,13 @@ def time_config(model, alphas, n_steps, batch, device, dtype,
             start = torch.cuda.Event(enable_timing=True)
             end = torch.cuda.Event(enable_timing=True)
             start.record()
-            denoise(model, noise, t_batches, a_s_list, a_e_list, autocast)
+            run()
             end.record()
             torch.cuda.synchronize(device)
             times_ms.append(start.elapsed_time(end))
         else:
             t0 = time.perf_counter()
-            denoise(model, noise, t_batches, a_s_list, a_e_list, autocast)
+            run()
             times_ms.append((time.perf_counter() - t0) * 1000.0)
 
     times_ms = np.array(times_ms)
@@ -182,28 +235,29 @@ def time_config(model, alphas, n_steps, batch, device, dtype,
     }
 
 
-def benchmark_model(label, path, n_steps, alphas, device, dtype, args):
+def benchmark_model(label, weights, n_steps, sampler, alphas, device, dtype, args):
     """Benchmark one model across all requested batch sizes; print and return rows."""
     try:
+        path = weights() if callable(weights) else weights   # lazily fetch base from HF
         model = load_model(path, device)
-    except FileNotFoundError:
-        print(f"{label:<13}  (skipped — checkpoint not found: {path})")
+    except OSError as e:                                      # FileNotFoundError subclasses OSError
+        print(f"{label:<15}  (skipped — weights unavailable: {e})")
         return []
 
     rows = []
     for batch in args.batch_sizes:
         try:
             stats = time_config(model, alphas, n_steps, batch, device, dtype,
-                                args.warmup, args.timed)
+                                args.warmup, args.timed, sampler)
         except RuntimeError as e:
             if "out of memory" not in str(e).lower():
                 raise
-            print(f"{label:<13}{n_steps:>6}{batch:>7}  (OOM — skipped)")
+            print(f"{label:<15}{n_steps:>6}{batch:>7}  (OOM — skipped)")
             if device.type == "cuda":
                 torch.cuda.empty_cache()
             continue
 
-        print(f"{label:<13}{n_steps:>6}{batch:>7}{stats['p50_ms']:>10.2f}"
+        print(f"{label:<15}{n_steps:>6}{batch:>7}{stats['p50_ms']:>10.2f}"
               f"{stats['p90_ms']:>10.2f}{stats['ms_per_img']:>9.3f}"
               f"{stats['img_per_s']:>10.1f}{stats['peak_mb']:>10.1f}")
         rows.append({"model": label, "steps": n_steps, "batch": batch, **stats})
@@ -250,6 +304,9 @@ def main():
     parser.add_argument("--warmup", type=int, default=10)
     parser.add_argument("--timed", type=int, default=50)
     parser.add_argument("--csv", default=None, help="optional path to write a CSV of results")
+    parser.add_argument("--models", nargs="+", default=None,
+                        help="only run models whose label contains one of these substrings "
+                             "(e.g. --models student  or  --models base-ddim)")
     args = parser.parse_args()
 
     device = torch.device(args.device)
@@ -258,14 +315,16 @@ def main():
 
     alphas = linear_alphas_cumprod().to(device)
 
-    header = (f"{'model':<13}{'steps':>6}{'batch':>7}{'p50 ms':>10}{'p90 ms':>10}"
+    header = (f"{'model':<15}{'steps':>6}{'batch':>7}{'p50 ms':>10}{'p90 ms':>10}"
               f"{'ms/img':>9}{'img/s':>10}{'peak MB':>10}")
     print("\n" + header)
     print("-" * len(header))
 
     rows = []
-    for label, path, n_steps in MODELS:
-        rows.extend(benchmark_model(label, path, n_steps, alphas, device, dtype, args))
+    for label, weights, n_steps, sampler in MODELS:
+        if args.models and not any(m in label for m in args.models):
+            continue
+        rows.extend(benchmark_model(label, weights, n_steps, sampler, alphas, device, dtype, args))
 
     if args.csv and rows:
         write_csv(args.csv, rows)
