@@ -40,6 +40,8 @@ Usage:
 
 import argparse
 import contextlib
+import glob
+import os
 import time
 
 import numpy as np
@@ -48,11 +50,22 @@ import torch
 from ddpm_arch import UNet2DModel, linear_alphas_cumprod, ddim_step, WEIGHTS_PATH
 
 
+def resolve_base_weights():
+    """Find the cached google/ddpm-cifar10-32 weights (.safetensors or .bin, any snapshot)."""
+    base_dir = os.path.expanduser(
+        "~/.cache/huggingface/hub/models--google--ddpm-cifar10-32/snapshots")
+    for fn in ("diffusion_pytorch_model.safetensors", "diffusion_pytorch_model.bin"):
+        hits = sorted(glob.glob(os.path.join(base_dir, "*", fn)))
+        if hits:
+            return hits[0]
+    return WEIGHTS_PATH  # fall back to the imported .bin path (skipped if absent)
+
+
 # Each entry: (label, checkpoint_path, native_inference_steps).
 # All share the same UNet architecture, so per-forward cost is identical; total
 # latency scales with steps x batch. Missing checkpoints are skipped with a note.
 MODELS = [
-    ("base-google", WEIGHTS_PATH,                 30),
+    ("base-google", resolve_base_weights(),                     30),
     ("student-25",  "./checkpoints/fast_professor_21_final.pt", 25),
     ("student-12",  "./checkpoints/fast_professor_12step.pt",   12),
     ("student-8",   "./checkpoints/fast_professor_8step.pt",     8),
@@ -65,10 +78,18 @@ DTYPES = {"fp32": torch.float32, "fp16": torch.float16, "bf16": torch.bfloat16}
 NUM_TRAIN_TIMESTEPS = 1000
 
 
+def load_state_dict_file(path, device):
+    """Load a state dict from either a .safetensors or a .bin/.pt checkpoint."""
+    if str(path).endswith(".safetensors"):
+        from safetensors.torch import load_file
+        return load_file(path, device=str(device))
+    return torch.load(path, map_location=device, weights_only=True)
+
+
 def load_model(path, device):
-    """Build the UNet and load a checkpoint (state_dict keys match the diffusers model)."""
+    """Build the UNet and load a checkpoint. AttentionBlock accepts both diffusers key namings."""
     model = UNet2DModel().to(device)
-    state = torch.load(path, map_location=device, weights_only=True)
+    state = load_state_dict_file(path, device)
     model.load_state_dict(state, strict=True)
     model.eval()
     return model

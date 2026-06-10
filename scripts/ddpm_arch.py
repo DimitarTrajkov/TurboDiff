@@ -86,6 +86,11 @@ class ResnetBlock2D(nn.Module):
 #     Key names: group_norm / query / key / value / proj_attn
 # ─────────────────────────────────────────────────────────────
 class AttentionBlock(nn.Module):
+    # Newer diffusers renamed the attention projections. Accept both on load so
+    # checkpoints saved by either version (legacy google .bin or recently trained
+    # students) match this module under strict=True.
+    _KEY_ALIASES = {"to_q": "query", "to_k": "key", "to_v": "value", "to_out.0": "proj_attn"}
+
     def __init__(self, ch: int, groups: int = 32, eps: float = 1e-6):
         super().__init__()
         self.group_norm = nn.GroupNorm(groups, ch, eps=eps, affine=True)
@@ -94,6 +99,15 @@ class AttentionBlock(nn.Module):
         self.value      = nn.Linear(ch, ch)
         self.proj_attn  = nn.Linear(ch, ch)
         self.scale      = ch ** -0.5
+
+    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
+        # Rename any modern-diffusers keys to this module's names before loading.
+        for alt, own in self._KEY_ALIASES.items():
+            for suffix in ("weight", "bias"):
+                alt_key, own_key = prefix + alt + "." + suffix, prefix + own + "." + suffix
+                if alt_key in state_dict and own_key not in state_dict:
+                    state_dict[own_key] = state_dict.pop(alt_key)
+        super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
 
     def forward(self, x):
         B, C, H, W = x.shape
