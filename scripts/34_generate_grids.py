@@ -28,7 +28,6 @@ from ddpm_arch import UNet2DModel, linear_alphas_cumprod, generate_n_steps
 
 NUM_TRAIN_TIMESTEPS = 1000
 
-
 @functools.lru_cache(maxsize=1)
 def fetch_base_weights():
     """Download (or reuse the cache of) google/ddpm-cifar10-32 weights from the HF hub."""
@@ -46,7 +45,7 @@ def fetch_base_weights():
 MODELS = [
     ("base-ddpm-1000", fetch_base_weights, 1000, "ddpm"),
     ("base-ddim-25",   fetch_base_weights,   25, "ddim"),
-    ("student-25", "./checkpoints/fast_professor_21_final.pt", 25, "ddim"),
+    ("student-25", "./checkpoints/fast_professor_25_final.pt", 25, "ddim"),
     ("student-12", "./checkpoints/fast_professor_12step.pt",   12, "ddim"),
     ("student-8",  "./checkpoints/fast_professor_8step.pt",     8, "ddim"),
 ]
@@ -114,7 +113,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--device", default="cuda:0" if torch.cuda.is_available() else "cpu")
-    parser.add_argument("--seed", type=int, default=0,
+    parser.add_argument("--seed", type=int, default=100,
                         help="reseeded per model, so every grid starts from the same noise")
     parser.add_argument("--outdir", default=".", help="directory for the output PNGs")
     parser.add_argument("--models", nargs="+", default=None,
