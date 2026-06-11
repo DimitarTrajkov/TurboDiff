@@ -25,6 +25,8 @@ check first.
 
 import argparse
 import functools
+import glob
+import os
 
 import torch
 import torchvision
@@ -168,39 +170,111 @@ def load_real_images(num_samples):
 # Evaluation for one step count
 # ─────────────────────────────────────────────────────────────
 @torch.no_grad()
-def evaluate_steps(model, alphas, extractor, real_imgs01, real_feats,
-                   steps, num_samples, batch, device, knn):
-    fid = FrechetInceptionDistance(feature=2048, normalize=True).to(device)
-    is_metric = InceptionScore(normalize=True).to(device)
-
-    # feed the (already loaded) real images into FID
-    for i in range(0, real_imgs01.shape[0], batch):
-        fid.update(real_imgs01[i:i + batch].to(device), real=True)
-
-    # generate fakes, accumulate FID/IS and collect features for P&R
-    fake_feats, generated = [], 0
-    pbar = tqdm(total=num_samples, desc=f"{steps:>4} steps")
-    while generated < num_samples:
-        bs = min(batch, num_samples - generated)
+def generate_fake_images(model, alphas, steps, count, batch, device, desc):
+    """Generate `count` DDPM samples at `steps` steps; return uint8 (count,3,32,32) on CPU."""
+    imgs, generated = [], 0
+    pbar = tqdm(total=count, desc=desc)
+    while generated < count:
+        bs = min(batch, count - generated)
         fake01 = (generate_ddpm_steps(model, alphas, bs, device, steps) + 1.0) / 2.0
-        fid.update(fake01, real=False)
-        is_metric.update(fake01)
-        fake_feats.append(inception_features(extractor, fake01, device))
+        imgs.append((fake01 * 255).round().byte().cpu())
         generated += bs
         pbar.update(bs)
     pbar.close()
+    return torch.cat(imgs, dim=0)
 
+
+@torch.no_grad()
+def compute_metrics(fake_uint8, real_imgs01, real_feats, extractor, device, batch, knn):
+    """FID / IS / Precision / Recall for a set of fake images (uint8, NCHW)."""
+    fid = FrechetInceptionDistance(feature=2048, normalize=True).to(device)
+    is_metric = InceptionScore(normalize=True).to(device)
+
+    for i in range(0, real_imgs01.shape[0], batch):
+        fid.update(real_imgs01[i:i + batch].to(device), real=True)
+
+    fake_feats = []
+    for i in range(0, fake_uint8.shape[0], batch):
+        fake01 = fake_uint8[i:i + batch].to(device).float() / 255.0
+        fid.update(fake01, real=False)
+        is_metric.update(fake01)
+        fake_feats.append(inception_features(extractor, fake01, device))
     fake_feats = torch.cat(fake_feats, dim=0)
+
     precision, recall = precision_recall(real_feats, fake_feats, k=knn)
     is_mean, is_std = is_metric.compute()
-    return {
-        "steps": steps,
-        "fid": fid.compute().item(),
-        "is_mean": is_mean.item(),
-        "is_std": is_std.item(),
-        "precision": precision,
-        "recall": recall,
-    }
+    return {"fid": fid.compute().item(), "is_mean": is_mean.item(),
+            "is_std": is_std.item(), "precision": precision, "recall": recall}
+
+
+def load_fake_shards(dirpath, steps, num_samples):
+    """Concatenate all saved shards for a step count into one uint8 tensor."""
+    files = sorted(glob.glob(os.path.join(dirpath, f"fakes_steps{steps}_shard*.pt")))
+    if not files:
+        raise FileNotFoundError(f"no shards for steps={steps} in {dirpath}")
+    fakes = torch.cat([torch.load(f, map_location="cpu", weights_only=True) for f in files], dim=0)
+    if fakes.shape[0] < num_samples:
+        print(f"  warning: only {fakes.shape[0]} samples for steps={steps} (<{num_samples})")
+    return fakes[:num_samples]
+
+
+def shard_count(total, shard_id, num_shards):
+    """How many samples this shard generates so the shards sum to `total`."""
+    return total // num_shards + (1 if shard_id < total % num_shards else 0)
+
+
+def generate_shard(args, device):
+    """Generation-only mode: produce this process's shard of fakes and save to disk."""
+    shard_id, num_shards = (0, 1)
+    if args.shard:
+        shard_id, num_shards = (int(p) for p in args.shard.split("/"))
+    os.makedirs(args.save_fakes, exist_ok=True)
+    torch.manual_seed(args.seed + shard_id)              # distinct, reproducible samples per shard
+
+    model = load_base_model(device)
+    alphas = linear_alphas_cumprod().to(device)
+    for steps in args.steps:
+        count = shard_count(args.num_samples, shard_id, num_shards)
+        fakes = generate_fake_images(model, alphas, steps, count, args.batch, device,
+                                     desc=f"steps{steps} shard{shard_id}/{num_shards}")
+        path = os.path.join(args.save_fakes, f"fakes_steps{steps}_shard{shard_id}of{num_shards}.pt")
+        torch.save(fakes, path)
+        print(f"  saved {tuple(fakes.shape)} -> {path}")
+
+
+def run_metrics(args, device):
+    """Metric mode: fakes come from disk (--load-fakes) or are generated on this GPU."""
+    print("Loading real images and extracting features…")
+    real_imgs01 = load_real_images(args.num_samples)
+    extractor = FrechetInceptionDistance(feature=2048, normalize=True).to(device).inception
+    real_feats = inception_features(extractor, real_imgs01, device)
+
+    model = alphas = None
+    if not args.load_fakes:
+        model = load_base_model(device)
+        alphas = linear_alphas_cumprod().to(device)
+        torch.manual_seed(args.seed)
+
+    header = f"{'steps':>6}{'FID':>10}{'IS':>16}{'Precision':>12}{'Recall':>10}"
+    lines = [header, "-" * len(header)]
+    print("\n" + header + "\n" + "-" * len(header))
+
+    for steps in args.steps:
+        if args.load_fakes:
+            fakes = load_fake_shards(args.load_fakes, steps, args.num_samples)
+        else:
+            fakes = generate_fake_images(model, alphas, steps, args.num_samples,
+                                         args.batch, device, desc=f"{steps:>4} steps")
+        m = compute_metrics(fakes, real_imgs01, real_feats, extractor, device, args.batch, args.knn)
+        row = (f"{steps:>6}{m['fid']:>10.3f}{m['is_mean']:>10.3f}±{m['is_std']:<5.3f}"
+               f"{m['precision']:>12.3f}{m['recall']:>10.3f}")
+        print(row)
+        lines.append(row)
+
+    if args.out:
+        with open(args.out, "w") as f:
+            f.write("\n".join(lines) + "\n")
+        print(f"\nWrote results to {args.out}")
 
 
 def main():
@@ -211,7 +285,15 @@ def main():
     parser.add_argument("--num-samples", type=int, default=10000)
     parser.add_argument("--batch", type=int, default=250)
     parser.add_argument("--knn", type=int, default=3, help="k for the precision/recall k-NN manifold")
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--out", default=None, help="optional path to also write the results table")
+    # Multi-GPU sharding: each GPU generates a shard, then one process aggregates.
+    parser.add_argument("--shard", default=None,
+                        help="this process's shard as i/N (e.g. 0/4); use with --save-fakes")
+    parser.add_argument("--save-fakes", default=None,
+                        help="generation-only: save this shard's fakes to this directory")
+    parser.add_argument("--load-fakes", default=None,
+                        help="skip generation: load fakes from this directory and compute metrics")
     args = parser.parse_args()
 
     device = torch.device(args.device)
@@ -219,33 +301,10 @@ def main():
         torch.cuda.set_device(device)
     print(f"Device: {device} | samples: {args.num_samples} | steps: {args.steps} | knn: {args.knn}")
 
-    model = load_base_model(device)
-    alphas = linear_alphas_cumprod().to(device)
-
-    # real images + their features (computed once, reused for every step count)
-    print("Loading real images and extracting features…")
-    real_imgs01 = load_real_images(args.num_samples)
-    extractor = FrechetInceptionDistance(feature=2048, normalize=True).to(device).inception
-    real_feats = inception_features(extractor, real_imgs01, device)
-
-    header = f"{'steps':>6}{'FID':>10}{'IS':>16}{'Precision':>12}{'Recall':>10}"
-    lines = [header, "-" * len(header)]
-    print("\n" + header)
-    print("-" * len(header))
-
-    for steps in args.steps:
-        m = evaluate_steps(model, alphas, extractor, real_imgs01, real_feats,
-                           steps, args.num_samples, args.batch, device, args.knn)
-        row = (f"{m['steps']:>6}{m['fid']:>10.3f}"
-               f"{m['is_mean']:>10.3f}±{m['is_std']:<5.3f}"
-               f"{m['precision']:>12.3f}{m['recall']:>10.3f}")
-        print(row)
-        lines.append(row)
-
-    if args.out:
-        with open(args.out, "w") as f:
-            f.write("\n".join(lines) + "\n")
-        print(f"\nWrote results to {args.out}")
+    if args.save_fakes:
+        generate_shard(args, device)
+    else:
+        run_metrics(args, device)
 
 
 if __name__ == "__main__":
