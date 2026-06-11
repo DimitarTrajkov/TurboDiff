@@ -122,9 +122,28 @@ https://huggingface.co/google/ddpm-cifar10-32
 Fréchet Inception Distance (FID) and Inception Score (IS) are computed using a pretrained Inception-v3 network trained on ImageNet, based on 10,000 generated samples. This differs from the standard protocol, which typically uses 50,000 images for computing FID and IS; however, due to computational constraints, we use this ~10,000-sample approximation.
 
 ### A.2 Other approaches
-> describe other approaches
 
-> considered other approachers (e.g latent space), but since our data (CIFAR-10) is so small it did not make sense
+### A.2 Alternative Approaches and Failed Baselines
+
+Before finalizing the main DDIM + Progressive Distillation pipeline, several alternative architectures and optimization strategies were evaluated:
+
+1. **Latent-Space VAE + Distillation:** Compressed $32 \times 32$ images into an $8 \times 8$ latent space for U-Net $v$-prediction training and distillation. This approach was rejected since downsampling already low-resolution CIFAR-10 images caused severe information loss and structural blurring.
+
+
+2. **Frequency-Domain Rectified Flow:** Transformed inputs into 6-channel FFT tensors (real/imaginary parts) trained on a Diffusion Transformer (DiT) with Linear Attention and SwiGLU blocks. It failed because the network was unable to align global spatial patterns from frequency space when using few inference steps.
+
+
+3. **Spatial DiT Baseline:** Processed raw RGB pixels using a flat DiT with standard stabilizers (EMA, AMP, and a OneCycleLR cosine scheduler). It was insufficient as the architecture capped out at a low Inception Score (IS $\approx$ 2.5) after 200 epochs.
+
+
+4. **Cosine-Scheduled DDPM with Min-SNR:** Transitioned to a DDPM cosine schedule with $v$-prediction, exact FlashAttention, and Min-SNR loss weighting ($\gamma = 5$) to balance gradient signals. It roduced a strong baseline (IS 6.59, FID 0.11), verifying our core diffusion setup before distillation.
+
+
+5. **Overlapping Convolutional Stems:** Replaced the DiT's standard patch projection with a 3-layer convolutional stem ($3 \times 3$ kernels, BatchNorm, GELU) to capture local features. It improved edge details but added too much computational overhead for a lightweight pipeline target.
+
+
+6. **Hierarchical Vision Transformers (U-ViT):** Implemented a U-Net style ViT architecture (using PatchMerge, PatchExpand, and skip connections) and tested it against a flat, parameter-matched "ViT-Large" control.Multi-resolution token routing proved vastly superior to flat scaling (achieving IS 7.24, FID 27.65), but the setup was ultimately excluded due to its heavy training footprint.
+
 
 ### A.3 Inference-Time Benchmark
 For the evaluation of inference time for each model, we perform 10 warm-up runs followed by 50 measured runs per configuration. After collecting the results, we compute the median execution time across the 50 measured runs, as well as the milliseconds per image and images per second metrics (see Table A.1). All experiments are conducted on a single NVIDIA RTX 5000 Ada Generation GPU.
