@@ -71,7 +71,7 @@ def fetch_base_weights():
 MODELS = [
     ("base-ddpm-1000", fetch_base_weights, 1000, "ddpm"),
     ("base-ddim-25",   fetch_base_weights,   25, "ddim"),
-    ("student-25", "./checkpoints/fast_professor_21_final.pt", 25, "ddim"),
+    ("student-25", "./checkpoints/fast_professor_25_final.pt", 25, "ddim"),
     ("student-12", "./checkpoints/fast_professor_12step.pt",   12, "ddim"),
     ("student-8",  "./checkpoints/fast_professor_8step.pt",     8, "ddim"),
 ]
