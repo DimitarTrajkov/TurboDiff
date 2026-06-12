@@ -71,6 +71,25 @@ Timing: FT-8s FP32
    BS=64  | Total: 1.298s | Per image: 20.28 ms
 
 
+Result -> FID: 12.9178 | IS: 8.5940±0.2640
+Timing: FT-8s FP16
+   BS=1   | Total: 0.489s | Per image: 488.62 ms
+   BS=4   | Total: 0.425s | Per image: 106.13 ms
+   BS=8   | Total: 0.440s | Per image: 55.04 ms
+   BS=16  | Total: 0.403s | Per image: 25.22 ms
+   BS=32  | Total: 0.432s | Per image: 13.51 ms
+   BS=64  | Total: 0.653s | Per image: 10.20 ms
+
+>>> Evaluating Quality: FT-8s BF16
+Result -> FID: 14.7138 | IS: 8.7176±0.2264
+Timing: FT-8s BF16
+   BS=1   | Total: 0.432s | Per image: 432.47 ms
+   BS=4   | Total: 0.384s | Per image: 95.98 ms
+   BS=8   | Total: 0.379s | Per image: 47.41 ms
+   BS=16  | Total: 0.360s | Per image: 22.49 ms
+   BS=32  | Total: 0.413s | Per image: 12.90 ms
+   BS=64  | Total: 0.625s | Per image: 9.77 ms
+
 
 ****************************************************************
 ****************************************************************
