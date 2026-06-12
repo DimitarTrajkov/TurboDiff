@@ -5,9 +5,10 @@ Evaluate the base google/ddpm-cifar10-32 model with the DETERMINISTIC DDIM
 sampler (eta=0) at several step counts, computing FID, IS, Precision and Recall
 over 10k generated samples vs. 10k real CIFAR-10 images.
 
-Uses the same linearly-spaced DDIM timestep grid and ddim_step() update as the
-distilled-student scripts (21, 22, 27, 36), via ddpm_arch.generate_n_steps, but
-applied to the un-distilled base UNet weights.
+Uses the diffusers-style DDIM timestep grid (DDIMScheduler.set_timesteps "leading"
+spacing: step_ratio = 1000 // n_steps, descending strided grid ending at 0) via
+ddpm_arch.make_training_grid + ddim_step(), matching the "Original N-step DDIM"
+rows in benchmark.py, applied to the un-distilled base UNet weights.
 
 FID and IS reuse the same torchmetrics setup as ddpm_arch.run_eval / script 09
 (feature=2048, normalize=True). Precision/Recall are the improved manifold metric
@@ -26,7 +27,7 @@ import os
 import torch
 from tqdm import tqdm
 
-from ddpm_arch import UNet2DModel, linear_alphas_cumprod, generate_n_steps
+from ddpm_arch import UNet2DModel, linear_alphas_cumprod, make_training_grid, ddim_step
 from metrics_utils import prepare_real, compute_metrics
 
 
@@ -55,6 +56,37 @@ def load_base_model(device):
 
 
 # ─────────────────────────────────────────────────────────────
+# DDIM sampler with the diffusers-style timestep grid
+# ─────────────────────────────────────────────────────────────
+@torch.no_grad()
+def generate_n_steps_diffusers(model, alphas_cumprod, batch_size, device, n_steps):
+    """
+    Generate a batch using the same DDIM timestep grid as
+    diffusers' DDIMScheduler.set_timesteps(n_steps) (step_ratio = 1000 // n_steps,
+    descending strided grid ending at 0), matching benchmark.py's ddim_sample.
+    """
+    model.eval()
+    x = torch.randn(batch_size, 3, 32, 32, device=device)
+    timesteps = make_training_grid(n_steps).to(device)
+    alphas = alphas_cumprod.to(device)
+
+    for i, t in enumerate(timesteps):
+        t_val = t.item()
+        t_batch = torch.full((batch_size,), t_val, device=device, dtype=torch.long)
+        eps = model(x, t_batch)
+        a_s = alphas[t_val].view(1, 1, 1, 1)
+
+        if i == len(timesteps) - 1:
+            x = (x - (1 - a_s).sqrt() * eps) / a_s.sqrt()
+            break
+
+        a_e = alphas[timesteps[i + 1].item()].view(1, 1, 1, 1)
+        x = ddim_step(eps, x, a_s, a_e)
+
+    return x.clamp(-1, 1)
+
+
+# ─────────────────────────────────────────────────────────────
 # Generation helpers
 # ─────────────────────────────────────────────────────────────
 @torch.no_grad()
@@ -64,7 +96,7 @@ def generate_fake_images(model, alphas, steps, count, batch, device, desc):
     pbar = tqdm(total=count, desc=desc)
     while generated < count:
         bs = min(batch, count - generated)
-        fake01 = (generate_n_steps(model, alphas, bs, device, steps) + 1.0) / 2.0
+        fake01 = (generate_n_steps_diffusers(model, alphas, bs, device, steps) + 1.0) / 2.0
         imgs.append((fake01 * 255).round().byte().cpu())
         generated += bs
         pbar.update(bs)
