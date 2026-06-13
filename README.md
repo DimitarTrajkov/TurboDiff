@@ -22,6 +22,8 @@ While multiple approaches have been tested, our primary line of work is built ar
 
 In this approach, we started off with the official Google implementation of the DDPM paper [4], which uses 1000 sampling steps, and built a DDIM sampling procedure on top of it. This allowed us to reduce the number of steps to roughly 25–30 without retraining the model and with only a minor sacrifice in performance. Once we achieved that, we iteratively reduced the number of steps through Progressive Distillation, first training a 25-step student model on the base DDPM with DDIM sampling, and then moving down to 12 and 8 steps (see Figure 2). Our fastest model achieves a x129.3 speedup during inference, while maintaining an FID of 15.9995 and an IS of 8.6021.
 
+The project presentation can be viewed [here](https://docs.google.com/presentation/d/1bskoTAs9aXKYNroxouZjTW7QAVdcStrMH-Xa_65ipoY/edit?usp=sharing).
+
 ![Pipeline](docs/diagram.png)
 
 *Figure 2: DDIM and Progressive Distillation Pipeline*
