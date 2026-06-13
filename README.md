@@ -64,8 +64,8 @@ After quantifying the speed-up factor, we compute the FID and IS for each model 
 | **LoRA Progressive Distillation** | 25 | x32.7 | 17.271  | 8.470 ± 0.350 |
 | | 12 | x68.2 | 18.343 | 8.410 ± 0.334 |
 | | 8 | x101.2 | 18.479 | 8.350 ± 0.333 |
-| **Lightweight Progressive Distillation** | 50 | x42.1 | 15.8078 | 5.3641 |
-| | 20 | x87.3 | 19.3013 | 5.2486 |
+| **Lightweight Progressive Distillation** | 50 | x80.5 | 15.8078 | 5.3641 |
+| | 20 | x199.8 | 19.3013 | 5.2486 |
 
 
 *Table 1: Speed-up factor and quantitative metrics comparison*
@@ -76,22 +76,22 @@ Our LoRA Progressive Distillation experiments indicate that the original model c
 
 Finally, Lightweight Progressive Distillation further reinforces this memory reduction technique, specifically targeting inference. It reduces model size by a factor of approximately 11 while maintaining baseline performance for models with up to 50 steps.
 
-<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
-  <img src="docs/grid_base-ddpm-1000.png" width="100%"/>
-  <img src="docs/grid_base-ddim-25.png" width="100%"/>
-  <img src="docs/grid_student-25.png" width="100%"/>
-  <img src="docs/grid_student-12.png" width="100%"/>
-  <img src="docs/grid_student-8.png" width="100%"/>
-</div>
+<p align="center">
+  <img src="docs/grid_base-ddpm-1000.png" width="32%" />
+  <img src="docs/grid_base-ddim-25.png" width="32%" />
+  <img src="docs/grid_student-25.png" width="32%" />
+  <img src="docs/grid_student-12.png" width="32%" />
+  <img src="docs/grid_student-8.png" width="32%" />
+  <img src="docs/grid_lora_student_25step.png" width="32%" />
+  <img src="docs/grid_lora_student_12step.png" width="32%" />
+  <img src="docs/grid_unet3M_50step.png" width="32%" />
+  <img src="docs/grid_unet3M_20step.png" width="32%" />
+</p>
 
 *Figure 3: Sample images generated for each setting*
 
-> add images for LoRA and lightweight
 
-
-> add speed-up factor for the lightweight model
-
-As for visual quality, elements corresponding to specific CIFAR-10 classes, such as frogs, horses, and trucks, can still be recognized in the reduced models (see Figure 3). Note that, for models using DDIM as the sampling strategy, the generated images are identical, and their quality does not appear to be affected as the number of steps is reduced. We acknowledge that the low resolution of CIFAR-10 images limits visual assessment of the methods, but the results are nonetheless encouraging.
+As for visual quality, elements corresponding to specific CIFAR-10 classes, such as frogs, horses, and trucks, can still be recognized in the reduced models (see Figure 3). Note that, for models DDIM and Progressive Distillation, the generated images are identical, and their quality does not appear to be affected as the number of steps is reduced. We acknowledge that the low resolution of CIFAR-10 images limits visual assessment of the methods, but the results are nonetheless encouraging.
 
 
 
@@ -133,12 +133,12 @@ In this second experimental setting, we aim to understand the behavior of the di
 | **LoRA Progressive Distillation** | 25 | 17.271 | 8.470 ± 0.350 | 0.656 | 0.592 |
 | | 12 | 18.343 | 8.410 ± 0.334 | 0.650 | 0.584 |
 | | 8 | 18.479 | 8.350 ± 0.333 | 0.656 | 0.575 |
-| **Lightweight Progressive Distillation** | 50 | 14.1555 | 8.3367 ± 0.3336 | 0.650 | 0.594 |
-| | 20 | 12.9952 | 8.4135 ± 0.2914 | 0.643 | 0.591 |
+| **Lightweight Progressive Distillation** | 50 | 15.8078 | 5.3641 | 0.650 | 0.594 |
+| | 20 | 19.3013 | 5.2486 | 0.643 | 0.591 |
 
 *Table 3: Precision–Recall Comparison for Different Approaches and Step Counts*
 
-> add real results for lightweight progressive distillation
+> add real results precisiona nd recall for lightweight progressive distillation
 
 
 The results for DDPM serve as compelling motivation for our approach. Observe that reducing the step count from 1000 down to 100 steps in the base model substantially impacts performance: it leads to a sixfold increase in the FID score and a halving of the diversity (recall) of the model output. When we further reduce this number to just 8 steps, the model's performance is completely compromised; it consistently generates the same noise images, resulting in zero recall and poor precision metrics.
@@ -243,38 +243,50 @@ For the evaluation of inference time for each model, we perform 10 warm-up runs 
 | | | 16 | 172.97 | 10.811 | 92.5 |
 | | | 32 | 310.40 | 9.700 | 103.1 |
 | | | 64 | 697.32 | 10.896 | 91.8 |
-| **DDIM + Progressive Distillation**  | 12    | 1     | 53.74       | 53.738  | 18.6   |
-|   |     | 2     | 54.31       | 27.157  | 36.8   |
-|   |    | 4     | 54.89       | 13.723  | 72.9   |
-|  |   | 8     | 54.44       | 6.805   | 146.9  |
-|   |   | 16    | 85.30       | 5.331   | 187.6  |
-|   |    | 32    | 149.75      | 4.680   | 213.7  |
-|  |   | 64    | 315.03      | 4.922   | 203.2  |
-| **DDIM + Progressive Distillation**    | 8     | 1     | 35.86       | 35.860  | 27.9   |
-|  |     | 2     | 36.89       | 18.443  | 54.2   |
-|  |    | 4     | 36.94       | 9.235   | 108.3  |
-|  |  | 8     | 36.95       | 4.619   | 216.5  |
-|  |    | 16    | 57.56       | 3.598   | 278.0  |
-|  |    | 32    | 101.10      | 3.159   | 316.5  |
-|  |     | 64    | 212.76      | 3.324   | 300.8  |
+| **DDIM + Progressive Distillation** | 12 | 1 | 53.74 | 53.738 | 18.6 |
+| | | 2 | 54.31 | 27.157 | 36.8 |
+| | | 4 | 54.89 | 13.723 | 72.9 |
+| | | 8 | 54.44 | 6.805 | 146.9 |
+| | | 16 | 85.30 | 5.331 | 187.6 |
+| | | 32 | 149.75 | 4.680 | 213.7 |
+| | | 64 | 315.03 | 4.922 | 203.2 |
+| **DDIM + Progressive Distillation** | 8 | 1 | 35.86 | 35.860 | 27.9 |
+| | | 2 | 36.89 | 18.443 | 54.2 |
+| | | 4 | 36.94 | 9.235 | 108.3 |
+| | | 8 | 36.95 | 4.619 | 216.5 |
+| | | 16 | 57.56 | 3.598 | 278.0 |
+| | | 32 | 101.10 | 3.159 | 316.5 |
+| | | 64 | 212.76 | 3.324 | 300.8 |
 | **LoRA Progressive Distillation** | 25 | 1 | 188.78 | 188.782 | 5.3 |
-| |  | 4 | 193.67 | 48.419 | 20.7 |
-| |  | 8 | 192.89 | 24.112 | 41.5 |
-| |  | 16 | 225.64 | 14.102 | 70.9 |
-| |  | 32 | 399.95 | 12.498 | 80.0 |
-| |  | 64 | 879.70 | 13.745 | 72.8 |
-| **LoRA Progressive Distillation**  | 12 | 1 | 91.09 | 91.093 | 11.0 |
-| |  | 4 | 93.61 | 23.403 | 42.7 |
-| |  | 8 | 93.24 | 11.655 | 85.8 |
-| |  | 16 | 110.70 | 6.919 | 144.5 |
-| |  | 32 | 191.76 | 5.993 | 166.9 |
-| |  | 64 | 407.05 | 6.360 | 157.2 |
+| | | 4 | 193.67 | 48.419 | 20.7 |
+| | | 8 | 192.89 | 24.112 | 41.5 |
+| | | 16 | 225.64 | 14.102 | 70.9 |
+| | | 32 | 399.95 | 12.498 | 80.0 |
+| | | 64 | 879.70 | 13.745 | 72.8 |
+| **LoRA Progressive Distillation** | 12 | 1 | 91.09 | 91.093 | 11.0 |
+| | | 4 | 93.61 | 23.403 | 42.7 |
+| | | 8 | 93.24 | 11.655 | 85.8 |
+| | | 16 | 110.70 | 6.919 | 144.5 |
+| | | 32 | 191.76 | 5.993 | 166.9 |
+| | | 64 | 407.05 | 6.360 | 157.2 |
 | **LoRA Progressive Distillation** | 8 | 1 | 60.78 | 60.777 | 16.5 |
-| |  | 4 | 63.96 | 15.989 | 62.5 |
-| |  | 8 | 62.88 | 7.860 | 127.2 |
-| |  | 16 | 74.16 | 4.635 | 215.8 |
-| |  | 32 | 129.23 | 4.038 | 247.6 |
-| |  | 64 | 271.22 | 4.238 | 236.0 |
+| | | 4 | 63.96 | 15.989 | 62.5 |
+| | | 8 | 62.88 | 7.860 | 127.2 |
+| | | 16 | 74.16 | 4.635 | 215.8 |
+| | | 32 | 129.23 | 4.038 | 247.6 |
+| | | 64 | 271.22 | 4.238 | 236.0 |
+| **Lightweight Progressive Distillation** | 50 | 1 | 108.27 | 108.272 | 9.2 |
+| | | 4 | 108.40 | 27.101 | 36.9 |
+| | | 8 | 108.80 | 13.599 | 73.5 |
+| | | 16 | 122.95 | 7.684 | 130.1 |
+| | | 32 | 162.45 | 5.076 | 197.0 |
+| | | 64 | 336.89 | 5.264 | 190.0 |
+| **Lightweight Progressive Distillation** | 20 | 1 | 43.83 | 43.831 | 22.8 |
+| | | 4 | 45.82 | 11.456 | 87.3 |
+| | | 8 | 43.67 | 5.459 | 183.2 |
+| | | 16 | 48.54 | 3.034 | 329.6 |
+| | | 32 | 65.44 | 2.045 | 489.0 |
+| | | 64 | 133.80 | 2.091 | 478.3 |
 
 
 *Table A.1: Inference time at different batch sizes*
