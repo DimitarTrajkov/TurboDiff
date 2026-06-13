@@ -64,17 +64,17 @@ After quantifying the speed-up factor, we compute the FID and IS for each model 
 | **LoRA Progressive Distillation** | 25 | x42.1 | 14.1555 | 8.3367 ± 0.3336 |
 | | 12 | x87.3 | 12.9952 | 8.4135 ± 0.2914 |
 | | 8 | x129.3 | 15.9995 | 8.6021 ± 0.4500 |
-| **Lightweight Progressive Distillation** | 25 | x42.1 | 14.1555 | 8.3367 ± 0.3336 |
-| | 12 | x87.3 | 12.9952 | 8.4135 ± 0.2914 |
-| | 8 | x129.3 | 15.9995 | 8.6021 ± 0.4500 |
+| **Lightweight Progressive Distillation** | 50 | x42.1 | 15.8078 | 5.3641 |
+| | 20 | x87.3 | 19.3013 | 5.2486 |
+
 
 *Table 2: Speed-up factor and quantitative metrics comparison*
 
-> analyze the results!!!!
+As the results demonstrate, decreasing the number of steps by a factor of k typically results in a speedup that is also approximately k-fold. Significantly reducing the number of steps without sacrificing performance remains a desirable goal. When using DDIM and Progressive Distillation, we achieved a 129-fold reduction in inference time, with only a ~14% degradation in FID (approximately one point), even with the smallest model employing just 8 steps, a substantial improvement.
 
+Our LoRA Progressive Distillation experiments indicate that the original model can be distilled to as few as 25 steps without incurring the full computational cost of fine-tuning and with minimal performance impact. This approach combines reduced memory usage during training, thanks to fewer parameters tracked by the optimizer (approximately 58% reduction), with a fourfold improvement in performance compared to models using 25 steps.
 
-As for visual quality, elements corresponding to specific CIFAR-10 classes, such as frogs, horses, and trucks, can still be recognized in the reduced models (see Figure 3). Note that, for models using DDIM as the sampling strategy, the generated images are identical, and their quality does not appear to be affected as the number of steps is reduced. We acknowledge that the low resolution of CIFAR-10 images limits visual assessment of the methods, but the results are nonetheless encouraging.
-
+Finally, Lightweight Progressive Distillation further reinforces this memory reduction technique, specifically targeting inference. It reduces model size by a factor of approximately 11 while maintaining baseline performance for models with up to 50 steps.
 
 <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
   <img src="docs/grid_base-ddpm-1000.png" width="100%"/>
@@ -85,6 +85,17 @@ As for visual quality, elements corresponding to specific CIFAR-10 classes, such
 </div>
 
 *Figure 3: Sample images generated for each setting*
+
+> add images for LoRA and lightweight
+
+> add real results for LoRA
+
+> add speed-up factor for the lightweight model
+
+As for visual quality, elements corresponding to specific CIFAR-10 classes, such as frogs, horses, and trucks, can still be recognized in the reduced models (see Figure 3). Note that, for models using DDIM as the sampling strategy, the generated images are identical, and their quality does not appear to be affected as the number of steps is reduced. We acknowledge that the low resolution of CIFAR-10 images limits visual assessment of the methods, but the results are nonetheless encouraging.
+
+
+
 
 **Quantization Study**
 
@@ -110,11 +121,6 @@ To study this trade-off, we compare FP32, FP16, BF16, and INT4 variants of both 
 In this second experimental setting, we aim to understand the behavior of the different approaches in terms of fidelity and diversity when reducing the number of sampling steps. To better capture these two properties, we use precision and recall of the generated data (see Table 5). The main goal is to compare how naive step pruning degrades performance, while techniques such as the implemented progressive distillation can maintain fidelity and diversity at reasonable levels despite the reduction in the number of steps.
 
 
-> - question to address:  Analyze how the proposed efficiency method handles severe step reductions compared
-to the standard DDPM scheduler.
-
-> | FID ↓ | IS ↑ | Precision ↑ (fidelity) | Recall ↑ (diversity) |
-
 | Method | Steps | FID | IS | Precision | Recall |
 |-------|-------|---------|-------|----------------|----------------|
 | **DDPM** | 1000 | 13.9409 | 8.3818 ± 0.2278 | 0.688  | 0.582 |
@@ -129,9 +135,8 @@ to the standard DDPM scheduler.
 | **LoRA Progressive Distillation** | 25 | 14.1555 | 8.3367 ± 0.3336 | 0.650 | 0.594 |
 | | 12 | 12.9952 | 8.4135 ± 0.2914 | 0.643 | 0.591 |
 | | 8 | 15.9995 | 8.6021 ± 0.4500 | 0.626 | 0.592 |
-| **Lightweight Progressive Distillation** | 25 | 14.1555 | 8.3367 ± 0.3336 | 0.650 | 0.594 |
-| | 12 | 12.9952 | 8.4135 ± 0.2914 | 0.643 | 0.591 |
-| | 8 | 15.9995 | 8.6021 ± 0.4500 | 0.626 | 0.592 |
+| **Lightweight Progressive Distillation** | 50 | 14.1555 | 8.3367 ± 0.3336 | 0.650 | 0.594 |
+| | 20 | 12.9952 | 8.4135 ± 0.2914 | 0.643 | 0.591 |
 
 *Table 5: Precision–Recall Comparison for Different Approaches and Step Counts*
 
@@ -139,11 +144,26 @@ to the standard DDPM scheduler.
 
 - DDIM as the sampler + progressive distillation to compensate for quality loss at fewer steps
 
-> analyze the results!!!!
+
 
 > step reduction handled gracefully in DDPM. Explain/mention how it is done
 
+
+The results for DDPM serve as compelling motivation for our approach. Observe that reducing the step count from 1000 down to 100 steps in the base model substantially impacts performance: it leads to a sixfold increase in the FID score and a halving of the diversity (recall) of the model output. When we further reduce this number to just 8 steps, the model's performance is completely compromised; it consistently generates the same noise images, resulting in zero recall and poor precision metrics.
+
+In relation to the DDIM sampling technique, there's a notable preservation of performance when using up to 25-steps, but this significantly deteriorates for configurations with 12 and 8 steps. The DDIM method demonstrates greater resilience towards substantial reductions in step counts compared to DDPM; however, it begins to show signs of struggle for step counts lower than 25.
+
+Finally, Progressive Distillation is able to surpass the 25-step DDIM baseline while maintaining strong performance at sampling budgets as low as 8 steps. Although not shown in Table 5, models with even fewer sampling steps were also evaluated; however, performance degraded significantly across all approaches, leading to noticeably worse sample quality.
+
+
+> analyze the results for LoRA and the other!!!!
+
 ## Conclusion
+In summary, we found that DDIM and Progressive Distillation facilitate substantial reductions in the number of steps required without compromising acceptable performance levels. Moreover, various strategies can be employed to alleviate the computational load associated with these methods, including techniques like LoRA for Progressive Distillation, as well as approaches aimed at minimizing model size such as our Lightweight Progressive Distillation method. 
+
+
+As a conclusion, it's evident that distillation techniques allow for the practical circumvention of theoretical constraints set by noise assumptions in DDPM. Thus, the implementation of these methodologies represents an optimal strategy that successfully merges the best aspects of efficiency and effectiveness.
+
 
 ## References
 [1] Salimans, T., & Ho, J. ”Progressive Distillation for Fast Sampling of Diffusion Models.” ICLR 2022.
