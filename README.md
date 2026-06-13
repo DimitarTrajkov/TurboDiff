@@ -334,8 +334,8 @@ For the lightweight model experimentation, we compare its performance to our bas
 
 | Method | Model Size | Sampling steps | FID | IS | Sampling Speed |
 |--------|-----------|-------|------|------|-----------------|
-| **Lightweight Progressive Distillation** | 12.5MB |20 | 27.694 | 7.230 ± 0.179 | 27.48 ms/img  |
-| | 12.5MB | 50 | 32.034 | 7.325 ± 0.139 | 12.28 ms/img | 
+| **Lightweight Progressive Distillation** | 12.5MB |50 | 27.694 | 7.230 ± 0.179 | 27.48 ms/img  |
+| | 12.5MB | 20 | 32.034 | 7.325 ± 0.139 | 12.28 ms/img | 
 | 8-step distilled  | 136 MB | 8 | 15.9995 | 8.6021 ± 0.4500 | 17.49 ms/img |
 
 *Table A.4: Lightweight and base model comparison*
