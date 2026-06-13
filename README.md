@@ -64,8 +64,8 @@ After quantifying the speed-up factor, we compute the FID and IS for each model 
 | **LoRA Progressive Distillation** | 25 | x32.7 | 17.271  | 8.470 ± 0.350 |
 | | 12 | x68.2 | 18.343 | 8.410 ± 0.334 |
 | | 8 | x101.2 | 18.479 | 8.350 ± 0.333 |
-| **Lightweight Progressive Distillation** | 50 | x80.5 | 15.8078 | 5.3641 |
-| | 20 | x199.8 | 19.3013 | 5.2486 |
+| **Lightweight Progressive Distillation** | 50 | x80.5 | 27.694 | 7.230 ± 0.179 |
+| | 20 | x199.8 | 32.034 | 7.325 ± 0.139 |
 
 
 *Table 1: Speed-up factor and quantitative metrics comparison*
@@ -74,7 +74,7 @@ As the results demonstrate, decreasing the number of steps by a factor of k typi
 
 Our LoRA Progressive Distillation experiments indicate that the original model can be distilled to as few as 25 steps without incurring the full computational cost of fine-tuning and with minimal performance impact. This approach combines reduced memory usage during training, thanks to fewer parameters tracked by the optimizer (approximately 58% reduction), with a fourfold improvement in performance compared to models using 25 steps.
 
-Finally, Lightweight Progressive Distillation further reinforces this memory reduction technique, specifically targeting inference. It reduces model size by a factor of approximately 11 while maintaining baseline performance for models with up to 50 steps.
+Finally, Lightweight Progressive Distillation further extends these memory optimization techniques, specifically targeting inference. While it compresses the model size by a factor of approximately 11, this reduction incurs a substantial performance trade-off.
 
 <p align="center">
   <img src="docs/grid_base-ddpm-1000.png" width="32%" />
@@ -95,12 +95,11 @@ As for visual quality, elements corresponding to specific CIFAR-10 classes, such
 
 
 
-
 **Quantization Study**
 
-We additionally evaluate post-training quantization as an orthogonal deployment optimization. While Progressive Distillation reduces the number of denoising steps required during inference, quantization reduces the memory footprint and arithmetic precision of the model itself.
+For our quantization analysis, we modified the sampler so that the 8-step UNet performs its internal computations in lower precision, while the predicted noise is converted back to `FP32` before the DDIM update (see Table 2). This isolates precision loss to individual UNet operations and prevents rounding errors from accumulating across the 8-step sampling process.
 
-To study this trade-off, we compare FP32, FP16, BF16, and INT4 variants for the distilled 8-step model (see Table 2). Note that FP16 and BF16 represent a 50% reduction in the model total size.
+
 
 | Method | Steps | Precision | FID | IS |
 | :--- | :---: | :---: | :---: | :---: |
@@ -110,9 +109,13 @@ To study this trade-off, we compare FP32, FP16, BF16, and INT4 variants for the 
 | | | INT4-NF4 | 14.6640 | 8.4426 ± 0.1944 |
 | | | INT4-Emu | 219.7875 | 3.1402 ± 0.0807 |
 
-> add analysis
-
 *Table 2: Speed-up factor and quantitative metrics comparison*.  
+
+Interestingly, both `FP16` and `BF16` achieved slightly better FID scores than `FP32`. In highly distilled diffusion models with very few sampling steps, small rounding and underflow effects can act as a form of implicit regularization, reducing high-frequency noise and minor artifacts. Additionally, native 16-bit execution makes full use of hardware Tensor Cores, which can improve numerical behavior during generation.
+
+The difference between the two 4-bit approaches highlights the importance of data-aware quantization. INT4-NF4 (NormalFloat4) achieved the best result with an FID of 14.6640, outperforming the `FP32` baseline. Since neural network weights are typically centered around zero and approximately normally distributed, NF4 allocates quantization levels according to this distribution, preserving important weight information.
+
+In contrast, INT4-Emu (uniform quantization) severely degraded performance (FID: 219.7875). Uniform quantization distributes bins evenly across the value range, which poorly represents the actual weight distribution and introduces substantial quantization error. The emulation process also adds casting overhead, making it slower than the uncompressed model while significantly reducing image quality.
 
 ### 4.2 Fidelity vs. Diversity Study
 
@@ -133,8 +136,8 @@ In this second experimental setting, we aim to understand the behavior of the di
 | **LoRA Progressive Distillation** | 25 | 17.271 | 8.470 ± 0.350 | 0.656 | 0.592 |
 | | 12 | 18.343 | 8.410 ± 0.334 | 0.650 | 0.584 |
 | | 8 | 18.479 | 8.350 ± 0.333 | 0.656 | 0.575 |
-| **Lightweight Progressive Distillation** | 50 | 15.8078 | 5.3641 | 0.601 | 0.534 |
-| | 20 | 19.3013 | 5.2486 | 0.582 | 0.523 |
+| **Lightweight Progressive Distillation** | 50 | 27.694 | 7.230 ± 0.179 | 0.601 | 0.534 |
+| | 20 | 32.034 | 7.325 ± 0.139 | 0.582 | 0.523 |
 
 *Table 3: Precision–Recall Comparison for Different Approaches and Step Counts*
 
@@ -147,7 +150,7 @@ Progressive Distillation, on the other hand, is able to surpass the 25-step DDIM
 
 The LoRA models also handle the reduction in step count as gracefully as Progressive Distillation.
 
-Finally, the small UNet, due to its limited capacity, requires more denoising steps to achieve similar performance, but as shown in Table 1, the speedup of this approach is higher despite the increase in the total number of forward passes.
+Finally, due to its limited capacity, the smaller UNet requires more denoising steps and does not fully match the original model's performance. However, as demonstrated in Table 1, this approach yields a greater overall speedup despite the increased number of forward passes, while simultaneously reducing the total memory footprint by a factor of 11.
 
 ## Conclusion
 In summary, we found that DDIM and Progressive Distillation facilitate substantial reductions in the number of steps required without compromising acceptable performance levels. Moreover, various strategies can be employed to alleviate the computational load associated with these methods, including techniques like LoRA for Progressive Distillation, as well as approaches aimed at minimizing model size such as our Lightweight Progressive Distillation method. 
@@ -327,15 +330,13 @@ Model capacity also shows a clear non-monotonic effect: increasing LoRA rank imp
 
 ### A.5 Lightweight Progressive Distillation
 
-For the lightweight model experimentation, we compare its performance to our baseline 8-step model, fine-tuned on the original DDPM model (see Table A.4). We can observe that 50-step DDIM sampling on our tiny UNet is on par with the 12-step distilled student while being 11× smaller in size.
-
-This makes image generation even more affordable, requiring only 13 MB to generate an image compared to the 140 MB of our distilled model. Furthermore, if we are willing to trade off some performance by using only 20 steps during inference, we can achieve 12.28 ms per image, which is 30% faster than the 8-step model.
+For the lightweight model experimentation, we compare its performance to our baseline 8-step model, fine-tuned on the original DDPM model (see Table A.4). We can observe that 50-step DDIM sampling on our tiny UNet is behind in terms of FID score, but is 11x smaller in size. This makes image generation even more affordable, requiring only 13 MB to generate an image compared to the 140 MB of our distilled model. Furthermore, if we are willing to trade off some performance by using only 20 steps during inference, we can achieve 12.28 ms per image, which is 30% faster than the 8-step model.
 
 | Method | Model Size | FID | IS | Inference Speed |
 |--------|-----------|-------|------|-----------------|
-| 50-step DDIM | 12.5 MB | 15.8078 | 5.3641 | 27.48 ms/img |
-| 20-step DDIM | 12.5 MB | 19.3013 | 5.2486 | 12.28 ms/img |
-| 8-step distilled | 136 MB  | 15.9995 | 8.6021 | 17.49 ms/img |
+| **Lightweight Progressive Distillation** | 50 | 27.694 | 7.230 ± 0.179 | 27.48 ms/img  |
+| | 20 | 32.034 | 7.325 ± 0.139 | 12.28 ms/img | 
+| 8-step distilled | 136 MB  | 15.9995 | 8.6021 ± 0.4500 | 17.49 ms/img |
 
 *Table A.4: Lightweight and base model comparison*
 
