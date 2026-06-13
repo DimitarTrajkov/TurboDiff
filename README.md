@@ -16,7 +16,7 @@ This project investigates methods for accelerating inference in CIFAR-10 diffusi
 
 ## Methodology
 
-While multiple approaches have been tested, our primary line of work is built around Denoising Diffusion Implicit Models (DDIM) [2] and Progressive Distillation [1]. This methodology is detailed in _DDIM and Progressive Distillation_. As extensions of this baseline, we explored training-time improvements, detailed in _LoRA Progressive Distillation_, as well as an additional direction focused on reducing the original model size, detailed in _Lightweight Progressive Distillation_. While this report focuses primarily on these core methodologies, other investigated directions are documented in Appendix A.2. Additionally, a detailed description of how the metrics used in this work are computed can be found in Appendix A.1.
+While multiple approaches have been tested, our primary line of work is built around Denoising Diffusion Implicit Models (DDIM) [2] and Progressive Distillation [1]. This methodology is detailed in _DDIM and Progressive Distillation_. As extensions of this baseline, we explored training-time improvements, detailed in _LoRA Progressive Distillation_, as well as an additional direction focused on reducing the original model size, detailed in _Lighweight UNet_. While this report focuses primarily on these core methodologies, other investigated directions are documented in Appendix A.2. Additionally, a detailed description of how the metrics used in this work are computed can be found in Appendix A.1.
 
 **DDIM and Progressive Distillation**
 
@@ -35,7 +35,7 @@ The key mechanisms used include teacher warm-starting of the LoRA heads, where t
 We considered multiple approaches within this framework, but the most notable results were achieving comparable performance to the 25-step fully fine-tuned model while reducing the trainable parameters by ≈58%. More detailed results of the experimentation can be found in Appendix A.4.
 
 
-**Lightweight Progressive Distillation**
+**Lighweight UNet**
 
 Another interesting approach that we tried is shifting our focus from progressive distillation on a big 136MB baseline, to training a lightweight model from scratch.
 
@@ -64,7 +64,7 @@ After quantifying the speed-up factor, we compute the FID and IS for each model 
 | **LoRA Progressive Distillation** | 25 | x32.7 | 17.271  | 8.470 ± 0.350 |
 | | 12 | x68.2 | 18.343 | 8.410 ± 0.334 |
 | | 8 | x101.2 | 18.479 | 8.350 ± 0.333 |
-| **Lightweight Progressive Distillation** | 50 | x80.5 | 27.694 | 7.230 ± 0.179 |
+| **Lighweight UNet** | 50 | x80.5 | 27.694 | 7.230 ± 0.179 |
 | | 20 | x199.8 | 32.034 | 7.325 ± 0.139 |
 
 
@@ -74,7 +74,7 @@ As the results demonstrate, decreasing the number of steps by a factor of k typi
 
 Our LoRA Progressive Distillation experiments indicate that the original model can be distilled to as few as 25 steps without incurring the full computational cost of fine-tuning and with minimal performance impact. This approach combines reduced memory usage during training, thanks to fewer parameters tracked by the optimizer (approximately 58% reduction), with a fourfold improvement in performance compared to models using 25 steps.
 
-Finally, Lightweight Progressive Distillation further extends these memory optimization techniques, specifically targeting inference. While it compresses the model size by a factor of approximately 11, this reduction incurs a substantial performance trade-off.
+Finally, Lighweight UNet further extends these memory optimization techniques, specifically targeting inference. While it compresses the model size by a factor of approximately 11, this reduction incurs a substantial performance trade-off.
 
 <p align="center">
   <img src="docs/grid_base-ddpm-1000.png" width="32%" />
@@ -136,7 +136,7 @@ In this second experimental setting, we aim to understand the behavior of the di
 | **LoRA Progressive Distillation** | 25 | 17.271 | 8.470 ± 0.350 | 0.656 | 0.592 |
 | | 12 | 18.343 | 8.410 ± 0.334 | 0.650 | 0.584 |
 | | 8 | 18.479 | 8.350 ± 0.333 | 0.656 | 0.575 |
-| **Lightweight Progressive Distillation** | 50 | 27.694 | 7.230 ± 0.179 | 0.601 | 0.534 |
+| **Lighweight UNet** | 50 | 27.694 | 7.230 ± 0.179 | 0.601 | 0.534 |
 | | 20 | 32.034 | 7.325 ± 0.139 | 0.582 | 0.523 |
 
 *Table 3: Precision–Recall Comparison for Different Approaches and Step Counts*
@@ -153,7 +153,7 @@ The LoRA models also handle the reduction in step count as gracefully as Progres
 Finally, due to its limited capacity, the smaller UNet requires more denoising steps and does not fully match the original model's performance. However, as demonstrated in Table 1, this approach yields a greater overall speedup despite the increased number of forward passes, while simultaneously reducing the total memory footprint by a factor of 11.
 
 ## Conclusion
-In summary, we found that DDIM and Progressive Distillation facilitate substantial reductions in the number of steps required without compromising acceptable performance levels. Moreover, various strategies can be employed to alleviate the computational load associated with these methods, including techniques like LoRA for Progressive Distillation, as well as approaches aimed at minimizing model size such as our Lightweight Progressive Distillation method. 
+In summary, we found that DDIM and Progressive Distillation facilitate substantial reductions in the number of steps required without compromising acceptable performance levels. Moreover, various strategies can be employed to alleviate the computational load associated with these methods, including techniques like LoRA for Progressive Distillation, as well as approaches aimed at minimizing model size such as our Lighweight UNet method. 
 
 
 As a conclusion, it's evident that distillation techniques allow for the practical circumvention of theoretical constraints set by noise assumptions in DDPM. Thus, the implementation of these methodologies represents an optimal strategy that successfully merges the best aspects of efficiency and effectiveness.
@@ -277,13 +277,13 @@ For the evaluation of inference time for each model, we perform 10 warm-up runs 
 | | | 16 | 74.16 | 4.635 | 215.8 |
 | | | 32 | 129.23 | 4.038 | 247.6 |
 | | | 64 | 271.22 | 4.238 | 236.0 |
-| **Lightweight Progressive Distillation** | 50 | 1 | 108.27 | 108.272 | 9.2 |
+| **Lighweight UNet** | 50 | 1 | 108.27 | 108.272 | 9.2 |
 | | | 4 | 108.40 | 27.101 | 36.9 |
 | | | 8 | 108.80 | 13.599 | 73.5 |
 | | | 16 | 122.95 | 7.684 | 130.1 |
 | | | 32 | 162.45 | 5.076 | 197.0 |
 | | | 64 | 336.89 | 5.264 | 190.0 |
-| **Lightweight Progressive Distillation** | 20 | 1 | 43.83 | 43.831 | 22.8 |
+| **Lighweight UNet** | 20 | 1 | 43.83 | 43.831 | 22.8 |
 | | | 4 | 45.82 | 11.456 | 87.3 |
 | | | 8 | 43.67 | 5.459 | 183.2 |
 | | | 16 | 48.54 | 3.034 | 329.6 |
@@ -328,13 +328,13 @@ A key result is that progressive, staged distillation (1000 → 25 → 8) consis
 Model capacity also shows a clear non-monotonic effect: increasing LoRA rank improves results up to a point, with rank 8 performing best, but further increasing to rank 16 reduces quality. This suggests that excessive capacity leads to overfitting to the training diffusion states, which do not match the self-generated inference distribution.
 
 
-### A.5 Lightweight Progressive Distillation
+### A.5 Lighweight UNet
 
 For the lightweight model experimentation, we compare its performance to our baseline 8-step model, fine-tuned on the original DDPM model (see Table A.4). We can observe that 50-step DDIM sampling on our tiny UNet is behind in terms of FID score, but is 11x smaller in size. This makes image generation even more affordable, requiring only 13 MB to generate an image compared to the 140 MB of our distilled model. Furthermore, if we are willing to trade off some performance by using only 20 steps during inference, we can achieve 12.28 ms per image, which is 30% faster than the 8-step model.
 
 | Method | Model Size | Sampling steps | FID | IS | Sampling Speed |
 |--------|-----------|-------|------|------|-----------------|
-| **Lightweight Progressive Distillation** | 12.5MB |50 | 27.694 | 7.230 ± 0.179 | 27.48 ms/img  |
+| **Lighweight UNet** | 12.5MB |50 | 27.694 | 7.230 ± 0.179 | 27.48 ms/img  |
 | | 12.5MB | 20 | 32.034 | 7.325 ± 0.139 | 12.28 ms/img | 
 | 8-step distilled  | 136 MB | 8 | 15.9995 | 8.6021 ± 0.4500 | 17.49 ms/img |
 
