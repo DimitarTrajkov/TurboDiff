@@ -133,22 +133,21 @@ In this second experimental setting, we aim to understand the behavior of the di
 | **LoRA Progressive Distillation** | 25 | 17.271 | 8.470 ± 0.350 | 0.656 | 0.592 |
 | | 12 | 18.343 | 8.410 ± 0.334 | 0.650 | 0.584 |
 | | 8 | 18.479 | 8.350 ± 0.333 | 0.656 | 0.575 |
-| **Lightweight Progressive Distillation** | 50 | 15.8078 | 5.3641 | 0.650 | 0.594 |
-| | 20 | 19.3013 | 5.2486 | 0.643 | 0.591 |
+| **Lightweight Progressive Distillation** | 50 | 15.8078 | 5.3641 | 0.601 | 0.534 |
+| | 20 | 19.3013 | 5.2486 | 0.582 | 0.523 |
 
 *Table 3: Precision–Recall Comparison for Different Approaches and Step Counts*
 
-> add real results precisiona nd recall for lightweight progressive distillation
 
+The results for DDPM serve as compelling motivation for our approach. Reducing the step count from 1000 to 100 in the base model substantially impacts performance: it leads to a sixfold increase in FID and a halving of the diversity (recall) of the model output. When we further reduce to just 8 steps, performance is completely compromised; the model consistently generates the same noisy images, resulting in zero recall and poor precision.
 
-The results for DDPM serve as compelling motivation for our approach. Observe that reducing the step count from 1000 down to 100 steps in the base model substantially impacts performance: it leads to a sixfold increase in the FID score and a halving of the diversity (recall) of the model output. When we further reduce this number to just 8 steps, the model's performance is completely compromised; it consistently generates the same noise images, resulting in zero recall and poor precision metrics.
+Regarding the DDIM sampling technique, performance is notably preserved when using up to 25 steps but deteriorates significantly for configurations with 12 and 8 steps. DDIM demonstrates greater resilience to substantial reductions in step count compared to DDPM; however, it begins to struggle below 25 steps.
 
-In relation to the DDIM sampling technique, there's a notable preservation of performance when using up to 25-steps, but this significantly deteriorates for configurations with 12 and 8 steps. The DDIM method demonstrates greater resilience towards substantial reductions in step counts compared to DDPM; however, it begins to show signs of struggle for step counts lower than 25.
+Progressive Distillation, on the other hand, is able to surpass the 25-step DDIM baseline while maintaining strong performance at sampling budgets as low as 8 steps. Although not shown in Table 3, models with even fewer sampling steps were also evaluated; however, performance degraded significantly across all approaches, leading to noticeably worse sample quality.
 
-Finally, Progressive Distillation is able to surpass the 25-step DDIM baseline while maintaining strong performance at sampling budgets as low as 8 steps. Although not shown in Table 3, models with even fewer sampling steps were also evaluated; however, performance degraded significantly across all approaches, leading to noticeably worse sample quality.
+The LoRA models also handle the reduction in step count as gracefully as Progressive Distillation.
 
-
-> analyze the results for LoRA and the other!!!!
+Finally, the small UNet, due to its limited capacity, requires more denoising steps to achieve similar performance, but as shown in Table 1, the speedup of this approach is higher despite the increase in the total number of forward passes.
 
 ## Conclusion
 In summary, we found that DDIM and Progressive Distillation facilitate substantial reductions in the number of steps required without compromising acceptable performance levels. Moreover, various strategies can be employed to alleviate the computational load associated with these methods, including techniques like LoRA for Progressive Distillation, as well as approaches aimed at minimizing model size such as our Lightweight Progressive Distillation method. 
