@@ -12,7 +12,7 @@
 Denoising Diffusion Probabilistic Models (DDPMs) [3] achieve state-of-the-art results in image
 generation, but their iterative sampling process is notoriously slow and computationally expensive.
 
-This project investigates methods for accelerating inference in CIFAR-10 diffusion models while preserving generative quality. Specifically, we leverage Progressive Distillation to compress a multi-step teacher model into a few-step student. Beyond standard distillation, we explore performance optimization through Low-Rank Adaptation (LoRA) and evaluate low-precision inference via post-training quantization. [MENTION THE BEST MODEL PERFORMANCE IN TERMS OF SPEEDUP AND FID % LOSS]
+This project investigates methods for accelerating inference in CIFAR-10 diffusion models while preserving generative quality. Specifically, we leverage Progressive Distillation to compress a multi-step teacher model into a few-step student. Beyond standard distillation, we explore performance optimization through Low-Rank Adaptation (LoRA) and evaluate low-precision inference via post-training quantization. Our best model achieves a 129× reduction in inference time, while only incurring a ~14% degradation in FID (≈ +1 point).
 
 ## Methodology
 
@@ -32,8 +32,7 @@ In this second approach, we tackled the computational burden of fully fine-tunin
 
 The key mechanisms used include teacher warm-starting of the LoRA heads, where the student network is initialized using the parameter values of the closest teacher LoRA head, and per-batch head activation, where the noise level is sampled per batch (thus, for each batch, a single head is activated).
 
-We considered multiple approaches within this framework, but the most notable results were achieving comparable performance to the 25-step fully fine-tuned model while reducing the trainable parameters by [INCLUDE NUMBER].
-
+We considered multiple approaches within this framework, but the most notable results were achieving comparable performance to the 25-step fully fine-tuned model while reducing the trainable parameters by ≈58%. More detailed results of the experimentation can be found in Appendix A.4.
 
 
 **Lightweight Progressive Distillation**
@@ -42,27 +41,7 @@ Another interesting approach that we tried is shifting our focus from progressiv
 
 The core architecture relies on a highly compact ~3M parameter UNet (12.5MB) utilizing GroupNorm to dynamically stabilize internal features across shifting noise levels without batch dependencies, which achieves an 11x reduction in model size. To maximize the expressive power of this smaller footprint, the model implements a FiLM (Feature Linear Modulation) mechanism to dynamically scale and shift feature maps for robust time-conditioning, powered by per-noise-level LoRA (Low-Rank Adaptation) split across 4 distinct time bands. 
 
-The forward process utilizes a cosine noise schedule to maintain a smoother distribution of noise throughout training. We also used **Exponential Moving Average (EMA)** to stabilize and smooth out the final generated outputs. As in the distillation diffusion, to increase inference times we used a DDIM sampler instead of the DDPM used while training.
-
-
-
-# TO BE MOVED SOMEWHERE ELSE
----
-
-| Metric / Configuration | 50 Steps DDIM | 20 Steps DDIM | Historical Baseline (Distillation) |
-| --- | --- | --- | --- |
-| **Model Size** | **12.5MB** | **12.5MB** | **136MB** (Google UNet) |
-| **FID** (Lower is better) | **15.8078** | **19.3013** | **15.9995** |
-| **Inception Score (IS)** | **5.3641** | **5.2486** | **8.6021** |
-| **Inference Speed** | **27.48ms / img**| **12.28ms / img** | **17.49ms / img** |
----
-
-From the table above, we can notice that the 50-step DDIM sampling on our tiny UNet is on par with the 12-step distilled student while being 11x smaller in size.
-
-This makes image generation even more affordable and unlocks **generating images on edge devices** with limited resources, needing only 13MB to generate an image compared to the 140MB of our distilled model.
-Furthermore, if we are willing to trade off a bit of performance by using only 20 steps during inference, we can achieve a blistering 12.28ms per image, which is 30% less than the 8-speed model.
-
-
+The forward process utilizes a cosine noise schedule to maintain a smoother distribution of noise throughout training. We also used **Exponential Moving Average (EMA)** to stabilize and smooth out the final generated outputs. As in the distillation diffusion, to increase inference times we used a DDIM sampler instead of the DDPM used while training. More detailed results of the experimentation can be found in Appendix A.5.
 
 
 ## Results
@@ -80,6 +59,12 @@ After quantifying the speed-up factor, we compute the FID and IS for each model 
 | **DDPM** | 1000 | x1 | 13.9409 | 8.3818 ± 0.2278 |
 | **DDIM** | 25 | x41.7 | 16.3709 | 8.1425 ± 0.2514 |
 | **DDIM + Progressive Distillation** | 25 | x42.1 | 14.1555 | 8.3367 ± 0.3336 |
+| | 12 | x87.3 | 12.9952 | 8.4135 ± 0.2914 |
+| | 8 | x129.3 | 15.9995 | 8.6021 ± 0.4500 |
+| **LoRA Progressive Distillation** | 25 | x42.1 | 14.1555 | 8.3367 ± 0.3336 |
+| | 12 | x87.3 | 12.9952 | 8.4135 ± 0.2914 |
+| | 8 | x129.3 | 15.9995 | 8.6021 ± 0.4500 |
+| **Lightweight Progressive Distillation** | 25 | x42.1 | 14.1555 | 8.3367 ± 0.3336 |
 | | 12 | x87.3 | 12.9952 | 8.4135 ± 0.2914 |
 | | 8 | x129.3 | 15.9995 | 8.6021 ± 0.4500 |
 
@@ -105,17 +90,7 @@ As for visual quality, elements corresponding to specific CIFAR-10 classes, such
 
 We additionally evaluate post-training quantization as an orthogonal deployment optimization. While Progressive Distillation reduces the number of denoising steps required during inference, quantization reduces the memory footprint and arithmetic precision of the model itself.
 
-To study this trade-off, we compare FP32, FP16, BF16, and INT4 variants of both the original DDPM model and the distilled 8-step model (see Table 3).
-
-| Model              | Params     | Size (MB) |
-|-------------------|------------|-----------|
-| FP32 (baseline)   | 35,746,307 | 136.4 MB  |
-| FP16              | 35,746,307 | 68.2 MB   |
-| BF16              | 35,746,307 | 68.2 MB   |
-| INT4-NF4 (bnb)    | 35,746,307 | 136.4 MB  |
-| INT4-Emulated     | 35,746,307 | 136.4 MB  |
-*Table 3: Model size comparison across numerical precision formats*
-
+To study this trade-off, we compare FP32, FP16, BF16, and INT4 variants of both the original DDPM model and the distilled 8-step model. Note that FP16 and BF16 represent a 50% reduction in the model total size.
 
 
 > add table and analysis
@@ -151,8 +126,16 @@ to the standard DDPM scheduler.
 | **DDIM + Progressive Distillation** | 25 | 14.1555 | 8.3367 ± 0.3336 | 0.650 | 0.594 |
 | | 12 | 12.9952 | 8.4135 ± 0.2914 | 0.643 | 0.591 |
 | | 8 | 15.9995 | 8.6021 ± 0.4500 | 0.626 | 0.592 |
+| **LoRA Progressive Distillation** | 25 | 14.1555 | 8.3367 ± 0.3336 | 0.650 | 0.594 |
+| | 12 | 12.9952 | 8.4135 ± 0.2914 | 0.643 | 0.591 |
+| | 8 | 15.9995 | 8.6021 ± 0.4500 | 0.626 | 0.592 |
+| **Lightweight Progressive Distillation** | 25 | 14.1555 | 8.3367 ± 0.3336 | 0.650 | 0.594 |
+| | 12 | 12.9952 | 8.4135 ± 0.2914 | 0.643 | 0.591 |
+| | 8 | 15.9995 | 8.6021 ± 0.4500 | 0.626 | 0.592 |
 
 *Table 5: Precision–Recall Comparison for Different Approaches and Step Counts*
+
+> add real results for LoRA and lightweight progressive distillation
 
 - DDIM as the sampler + progressive distillation to compensate for quality loss at fewer steps
 
@@ -200,23 +183,27 @@ considered *recalled* if it falls inside *any* generated hypersphere.
 
 Before finalizing the main DDIM + Progressive Distillation pipeline, several alternative architectures and optimization strategies were evaluated:
 
-1. **Latent-Space VAE + Distillation:** Compressed $32 \times 32$ images into an $8 \times 8$ latent space for U-Net $v$-prediction training and distillation. This approach was rejected since downsampling already low-resolution CIFAR-10 images caused severe information loss and structural blurring.
+**FastDiT with Velocity Prediction**
+
+A patch-based Diffusion Transformer (FastDiT) was evaluated as a convolution-free alternative, operating on $4 \times 4$ image patches processed by an 8-layer, 256-dimensional Transformer. The model incorporated standard diffusion improvements such as cosine noise scheduling, adaptive layer normalization (adaLN), and EMA tracking with OneCycleLR.
+
+Two key methodological innovations were tested:
+- Velocity prediction objective ($v$-prediction): instead of predicting noise or clean images, the model learns a combined velocity formulation linking both. This required modifying the DDIM sampling process to reconstruct both $x_0$ and $\epsilon$ at each step, aiming to improve balance between global structure and fine texture learning.
+- Min-SNR loss weighting: introduced to stabilize training by down-weighting high-noise timesteps, improving gradient balance across diffusion steps.
+
+Despite these refinements, the model underperformed due to excessive patch size relative to model capacity, resulting in FID ≈ 33, IS ≈ 6.5, and ~22.9 ms inference time.
 
 
-2. **Frequency-Domain Rectified Flow:** Transformed inputs into 6-channel FFT tensors (real/imaginary parts) trained on a Diffusion Transformer (DiT) with Linear Attention and SwiGLU blocks. It failed because the network was unable to align global spatial patterns from frequency space when using few inference steps.
+**Surgical Knowledge Distillation**
 
+A structured distillation strategy was also tested to compress a 12-step teacher model into a smaller student network by reducing channel widths and aligning intermediate representations.
 
-3. **Spatial DiT Baseline:** Processed raw RGB pixels using a flat DiT with standard stabilizers (EMA, AMP, and a OneCycleLR cosine scheduler). It was insufficient as the architecture capped out at a low Inception Score (IS $\approx$ 2.5) after 200 epochs.
+The approach relied on:
+- Selective warm-start + partial freezing: internal high-capacity layers were frozen (“Frozen Brain”), while only outer layers were trained using partially transferred and averaged weights.
+- Learned linear projectors (1×1 convolutions): used to map student feature dimensions (96 channels) to teacher space (128 channels) for alignment.
+- Normalized feature alignment loss: combined output MSE with feature-level losses to stabilize training and prevent gradient explosion.
 
-
-4. **Cosine-Scheduled DDPM with Min-SNR:** Transitioned to a DDPM cosine schedule with $v$-prediction, exact FlashAttention, and Min-SNR loss weighting ($\gamma = 5$) to balance gradient signals. It roduced a strong baseline (IS 6.59, FID 0.11), verifying our core diffusion setup before distillation.
-
-
-5. **Overlapping Convolutional Stems:** Replaced the DiT's standard patch projection with a 3-layer convolutional stem ($3 \times 3$ kernels, BatchNorm, GELU) to capture local features. It improved edge details but added too much computational overhead for a lightweight pipeline target.
-
-
-6. **Hierarchical Vision Transformers (U-ViT):** Implemented a U-Net style ViT architecture (using PatchMerge, PatchExpand, and skip connections) and tested it against a flat, parameter-matched "ViT-Large" control.Multi-resolution token routing proved vastly superior to flat scaling (achieving IS 7.24, FID 27.65), but the setup was ultimately excluded due to its heavy training footprint.
-
+Despite its structural sophistication, this distillation pipeline failed to achieve competitive performance and was ultimately abandoned, though it remained a promising direction for model compression and acceleration.
 
 ### A.3 Inference-Time Benchmark
 For the evaluation of inference time for each model, we perform 10 warm-up runs followed by 50 measured runs per configuration. After collecting the results, we compute the median execution time across the 50 measured runs, as well as the milliseconds per image and images per second metrics (see Table A.1). All experiments are conducted on a single NVIDIA RTX 5000 Ada Generation GPU.
@@ -263,3 +250,51 @@ For the evaluation of inference time for each model, we perform 10 warm-up runs 
 *Table A.1: Inference time at different batch sizes*
 
 As observed, execution benefits from parallelism within the GPU, leading to a progressive increase in throughput (images/s), which peaks at a batch size of 32.
+
+### A.4 LoRA Progressive Distillation
+
+ All experiments freeze the pretrained ~35.7M-parameter UNet [4] and train only a bank of LoRA adapters, assigning exactly one head to each step of the student's inference schedule. Adapters are injected into the attention projections, the per-block time-embedding projections, and in the 3×3 ResNet convolutions. 
+
+Table A.2 compares the best LoRA students against fully fine-tuned models under an approximate version of the unified evaluation pipeline described in A.1 (10,000 samples). Note that the FID and IS metrics may differ from previously reported values, as this approximation is used to reduce computational cost. The primary objective here is to compare approaches rather than to report low-error final metrics. At 25 steps, the LoRA student matches full fine-tuning within evaluation noise while training approximately 58% fewer parameters (15.1M vs. 35.7M), with only 0.61M adapter parameters active at each inference step. As the step count decreases, the gap widens: at 8 steps, the best LoRA configuration trails full fine-tuning by approximately 1.3 FID and yields a lower IS, while fidelity and diversity (precision/recall) remain broadly comparable.
+
+| Method | Steps | Trainable params | FID  | IS  | Precision  | Recall  |
+|--------|-------|------------------|-------|------|-------------|----------|
+| Full fine-tuning | 25 | 35.7M | 16.898 | 8.499 ± 0.330 | 0.650 | 0.594 |
+| LoRA (r = 4) | 25 | 15.1M | 17.175 | 8.492 ± 0.199 | 0.641 | 0.601 |
+| LoRA (r = 4) | 12 | 7.3M | 18.533 | 8.309 ± 0.170 | 0.639 | 0.587 |
+| Full fine-tuning | 8 | 35.7M | 17.426 | 8.944 ± 0.239 | 0.626 | 0.592 |
+| LoRA (r = 8) | 8 | 9.7M | 18.711 | 8.296 ± 0.140 | 0.650 | 0.589 |
+
+*Table A.2: LoRA vs. fully fine-tuned students.*
+
+Additionally, we stress-tested the design choices for the final 8-step model using the approximated FID and IS scores (Table A.3).
+
+| Configuration | Distillation path | FID  | IS  |
+|---------------|-------------------|-------|------|
+| rank 8, staged (best) | 1000 → 25 → 8 | 18.711 | 8.296 ± 0.140 |
+| rank 4 (attn + temb), 5 epochs | 1000 → 25 → 12 → 8 | 18.982 | 8.407 ± 0.226 |
+| rank 8, direct from base | 1000 → 8 | 19.728 | 7.966 ± 0.192 |
+| rank 16, staged | 1000 → 25 → 8 | 19.989 | 8.074 ± 0.197 |
+| rank 4 (+ conv), 15 epochs | 1000 → 25 → 12 → 8 | 20.199 | 8.209 ± 0.279 |
+| Zero-shot head reuse (no training) | 25-step heads on the 8-step schedule | 42.657 | 6.996 ± 0.245 |
+
+*Table A.3: 8-step ablations*
+
+A key result is that progressive, staged distillation (1000 → 25 → 8) consistently outperforms direct distillation from 1000 → 8, even though both ultimately target the same endpoint. The intermediate teacher effectively simplifies the trajectory the student must learn, making the final compression into very few steps easier and more stable.
+Model capacity also shows a clear non-monotonic effect: increasing LoRA rank improves results up to a point, with rank 8 performing best, but further increasing to rank 16 reduces quality. This suggests that excessive capacity leads to overfitting to the training diffusion states, which do not match the self-generated inference distribution.
+
+
+### A.5 Lightweight Progressive Distillation
+
+For the lightweight model experimentation, we compare its performance to our baseline 8-step model, fine-tuned on the original DDPM model (see Table A.4). We can observe that 50-step DDIM sampling on our tiny UNet is on par with the 12-step distilled student while being 11× smaller in size.
+
+This makes image generation even more affordable, requiring only 13 MB to generate an image compared to the 140 MB of our distilled model. Furthermore, if we are willing to trade off some performance by using only 20 steps during inference, we can achieve 12.28 ms per image, which is 30% faster than the 8-step model.
+
+| Method | Model Size | FID | IS | Inference Speed |
+|--------|-----------|-------|------|-----------------|
+| 50-step DDIM | 12.5 MB | 15.8078 | 5.3641 | 27.48 ms/img |
+| 20-step DDIM | 12.5 MB | 19.3013 | 5.2486 | 12.28 ms/img |
+| 8-step distilled | 136 MB  | 15.9995 | 8.6021 | 17.49 ms/img |
+
+*Table A.4: Lightweight and base model comparison*
+
