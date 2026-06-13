@@ -60,7 +60,13 @@
  MODEL SIZE SUMMARY 
 ==================================================
 FT-8s FP32      | Steps: 8  | Params: 35,746,307 | Size: 136.4 MB
+FT-8s FP16      | Steps: 8  | Params: 35,746,307 | Size: 68.2 MB
+FT-8s BF16      | Steps: 8  | Params: 35,746,307 | Size: 68.2 MB
+FT-8s INT4-NF4  | Steps: 8  | Params: 35,746,307 | Size: 136.4 MB
+FT-8s INT4-Emu  | Steps: 8  | Params: 35,746,307 | Size: 136.4 MB
 
+
+>>> Evaluating Quality: FT-8s FP32
 Result -> FID: 16.1163 | IS: 8.7701±0.2652
 Timing: FT-8s FP32
    BS=1   | Total: 0.350s | Per image: 349.54 ms
@@ -69,7 +75,56 @@ Timing: FT-8s FP32
    BS=16  | Total: 0.329s | Per image: 20.54 ms
    BS=32  | Total: 0.597s | Per image: 18.65 ms
    BS=64  | Total: 1.298s | Per image: 20.28 ms
+   
+   
+>>> Evaluating Quality: FT-8s FP16
+Result -> FID: 12.9178 | IS: 8.5940±0.2640
+Timing: FT-8s FP16
+   BS=1   | Total: 0.489s | Per image: 488.62 ms
+   BS=4   | Total: 0.425s | Per image: 106.13 ms
+   BS=8   | Total: 0.440s | Per image: 55.04 ms
+   BS=16  | Total: 0.403s | Per image: 25.22 ms
+   BS=32  | Total: 0.432s | Per image: 13.51 ms
+   BS=64  | Total: 0.653s | Per image: 10.20 ms
 
+>>> Evaluating Quality: FT-8s BF16
+Result -> FID: 14.7138 | IS: 8.7176±0.2264
+Timing: FT-8s BF16
+   BS=1   | Total: 0.432s | Per image: 432.47 ms
+   BS=4   | Total: 0.384s | Per image: 95.98 ms
+   BS=8   | Total: 0.379s | Per image: 47.41 ms
+   BS=16  | Total: 0.360s | Per image: 22.49 ms
+   BS=32  | Total: 0.413s | Per image: 12.90 ms
+   BS=64  | Total: 0.625s | Per image: 9.77 ms
+
+>>> Evaluating Quality: FT-8s INT4-NF4
+Result -> FID: 14.6640 | IS: 8.4426±0.1944
+Timing: FT-8s INT4-NF4
+   BS=1   | Total: 0.610s | Per image: 609.93 ms
+   BS=4   | Total: 0.681s | Per image: 170.35 ms
+   BS=8   | Total: 0.730s | Per image: 91.25 ms
+   BS=16  | Total: 0.703s | Per image: 43.96 ms
+   BS=32  | Total: 0.682s | Per image: 21.32 ms
+   BS=64  | Total: 1.177s | Per image: 18.40 ms
+
+>>> Evaluating Quality: FT-8s INT4-Emu
+Result -> FID: 219.7875 | IS: 3.1402±0.0807
+Timing: FT-8s INT4-Emu
+   BS=1   | Total: 0.324s | Per image: 324.06 ms
+   BS=4   | Total: 0.314s | Per image: 78.57 ms
+   BS=8   | Total: 0.352s | Per image: 43.98 ms
+   BS=16  | Total: 0.394s | Per image: 24.63 ms
+   BS=32  | Total: 0.565s | Per image: 17.65 ms
+   BS=64  | Total: 1.109s | Per image: 17.33 ms
+
+============================================================
+ FINAL BENCHMARK SUMMARY 
+============================================================
+FT-8s FP32      -> FID: 16.1163  | IS: 8.7701±0.2652 | Inference:  17.33 ms / img  | size 136.4 MB
+FT-8s FP16      -> FID: 12.9178  | IS: 8.594±0.264   | Inference:  18.40 ms / img  | size  68.2 MB
+FT-8s BF16      -> FID: 14.7138  | IS: 8.7176±0.2264 | Inference:  9.77 ms / img  | size  68.2 MB
+FT-8s INT4-NF4  -> FID: 14.664   | IS: 8.4426±0.1944 | Inference:  10.20 ms / img  | size 136.4 MB
+FT-8s INT4-Emu  -> FID: 219.7875 | IS: 3.1402±0.0807 | Inference:  20.28 ms / img  | size  136.4 MB
 
 
 ****************************************************************
