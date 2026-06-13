@@ -30,7 +30,7 @@ import matplotlib
 matplotlib.use("Agg")            # headless-safe: we only savefig, never show
 import matplotlib.pyplot as plt
 
-import unet3M_lora as U
+import scripts.unet3M_lora as U
 
 DEFAULT_BATCH_SIZES = [1, 4, 8, 16, 32, 64]
 

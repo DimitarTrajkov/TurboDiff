@@ -18,7 +18,7 @@ from torchmetrics.image.inception import InceptionScore
 LORA_BANDS = [(0,249),(250,499),(500,749),(750,999)]
 N_LORA_BANDS = len(LORA_BANDS)
 
-from unet3M_lora import DEVICE, DiffusionSchedule, UNet, EMA
+from scripts.unet3M_lora import DEVICE, DiffusionSchedule, UNet, EMA
 
 
 

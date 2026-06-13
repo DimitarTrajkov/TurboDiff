@@ -21,7 +21,7 @@ import sys
 
 import torch
 
-import unet3M_lora as U
+import scripts.unet3M_lora as U
 
 # metrics_utils lives in scripts/ — add it to the path
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "scripts"))
