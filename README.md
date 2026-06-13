@@ -332,11 +332,11 @@ Model capacity also shows a clear non-monotonic effect: increasing LoRA rank imp
 
 For the lightweight model experimentation, we compare its performance to our baseline 8-step model, fine-tuned on the original DDPM model (see Table A.4). We can observe that 50-step DDIM sampling on our tiny UNet is behind in terms of FID score, but is 11x smaller in size. This makes image generation even more affordable, requiring only 13 MB to generate an image compared to the 140 MB of our distilled model. Furthermore, if we are willing to trade off some performance by using only 20 steps during inference, we can achieve 12.28 ms per image, which is 30% faster than the 8-step model.
 
-| Method | Model Size | FID | IS | Inference Speed |
-|--------|-----------|-------|------|-----------------|
-| **Lightweight Progressive Distillation** | 50 | 27.694 | 7.230 ± 0.179 | 27.48 ms/img  |
-| | 20 | 32.034 | 7.325 ± 0.139 | 12.28 ms/img | 
-| 8-step distilled | 136 MB  | 15.9995 | 8.6021 ± 0.4500 | 17.49 ms/img |
+| Method | Model Size | Sampling steps | FID | IS | Sampling Speed |
+|--------|-----------|-------|------|------|-----------------|
+| **Lightweight Progressive Distillation** | 12.5MB |20 | 27.694 | 7.230 ± 0.179 | 27.48 ms/img  |
+| | 12.5MB | 50 | 32.034 | 7.325 ± 0.139 | 12.28 ms/img | 
+| 8-step distilled | 8 | 136 MB  | 15.9995 | 8.6021 ± 0.4500 | 17.49 ms/img |
 
 *Table A.4: Lightweight and base model comparison*
 
