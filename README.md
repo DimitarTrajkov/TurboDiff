@@ -52,7 +52,7 @@ To evaluate the results obtained, we conducted two different studies. The first 
 
 For this experiment, we evaluate the speed-up factor of different setups across varying batch sizes using an NVIDIA RTX 5000 Ada Generation GPU. Detailed results for all batch sizes are provided in Appendix A.3. In subsequent experiments, the speed-up factor is defined relative to a batch size of 32 and computed using the median milliseconds required to generate a batch.
 
-After quantifying the speed-up factor, we compute the FID and IS for each model and compare the results (see Table 2).
+After quantifying the speed-up factor, we compute the FID and IS for each model and compare the results (see Table 1).
 
 | Method | Steps | Speed-up factor | FID | IS |
 |--------|-------|-----------------|-----|-----|
@@ -61,14 +61,14 @@ After quantifying the speed-up factor, we compute the FID and IS for each model 
 | **DDIM + Progressive Distillation** | 25 | x42.1 | 14.1555 | 8.3367 ± 0.3336 |
 | | 12 | x87.3 | 12.9952 | 8.4135 ± 0.2914 |
 | | 8 | x129.3 | 15.9995 | 8.6021 ± 0.4500 |
-| **LoRA Progressive Distillation** | 25 | x42.1 | 14.1555 | 8.3367 ± 0.3336 |
-| | 12 | x87.3 | 12.9952 | 8.4135 ± 0.2914 |
-| | 8 | x129.3 | 15.9995 | 8.6021 ± 0.4500 |
+| **LoRA Progressive Distillation** | 25 | x32.7 | 17.271  | 8.470 ± 0.350 |
+| | 12 | x68.2 | 18.343 | 8.410 ± 0.334 |
+| | 8 | x101.2 | 18.479 | 8.350 ± 0.333 |
 | **Lightweight Progressive Distillation** | 50 | x42.1 | 15.8078 | 5.3641 |
 | | 20 | x87.3 | 19.3013 | 5.2486 |
 
 
-*Table 2: Speed-up factor and quantitative metrics comparison*
+*Table 1: Speed-up factor and quantitative metrics comparison*
 
 As the results demonstrate, decreasing the number of steps by a factor of k typically results in a speedup that is also approximately k-fold. Significantly reducing the number of steps without sacrificing performance remains a desirable goal. When using DDIM and Progressive Distillation, we achieved a 129-fold reduction in inference time, with only a ~14% degradation in FID (approximately one point), even with the smallest model employing just 8 steps, a substantial improvement.
 
@@ -88,7 +88,6 @@ Finally, Lightweight Progressive Distillation further reinforces this memory red
 
 > add images for LoRA and lightweight
 
-> add real results for LoRA
 
 > add speed-up factor for the lightweight model
 
@@ -101,24 +100,23 @@ As for visual quality, elements corresponding to specific CIFAR-10 classes, such
 
 We additionally evaluate post-training quantization as an orthogonal deployment optimization. While Progressive Distillation reduces the number of denoising steps required during inference, quantization reduces the memory footprint and arithmetic precision of the model itself.
 
-To study this trade-off, we compare FP32, FP16, BF16, and INT4 variants of both the original DDPM model and the distilled 8-step model. Note that FP16 and BF16 represent a 50% reduction in the model total size.
-
-
-> add table and analysis
+To study this trade-off, we compare FP32, FP16, BF16, and INT4 variants for the distilled 8-step model (see Table 2). Note that FP16 and BF16 represent a 50% reduction in the model total size.
 
 | Method | Steps | Precision | FID | IS |
-|--------|-------|-----------------|-----|-----|
-| **DDPM** | 1000 | x1 | 13.9409 | 8.3818 ± 0.2278 |
-| **DDIM** | 25 | x41.7 | 16.3709 | 8.1425 ± 0.2514 |
-| **DDIM + Progressive Distillation** | 25 | x42.1 | 14.1555 | 8.3367 ± 0.3336 |
-| | 12 | x87.3 | 12.9952 | 8.4135 ± 0.2914 |
-| | 8 | x129.3 | 15.9995 | 8.6021 ± 0.4500 |
+| :--- | :---: | :---: | :---: | :---: |
+| **DDIM + Progressive Distillation**  | 8 | FP32 | 16.1163 | 8.7701 ± 0.2652 |
+| | | FP16 | 12.9178 | 8.5940 ± 0.2640 |
+| | | BF16 | 14.7138 | 8.7176 ± 0.2264 |
+| | | INT4-NF4 | 14.6640 | 8.4426 ± 0.1944 |
+| | | INT4-Emu | 219.7875 | 3.1402 ± 0.0807 |
 
-*Table 4: Speed-up factor and quantitative metrics comparison*.  
+> add analysis
+
+*Table 2: Speed-up factor and quantitative metrics comparison*.  
 
 ### 4.2 Fidelity vs. Diversity Study
 
-In this second experimental setting, we aim to understand the behavior of the different approaches in terms of fidelity and diversity when reducing the number of sampling steps. To better capture these two properties, we use precision and recall of the generated data (see Table 5). The main goal is to compare how naive step pruning degrades performance, while techniques such as the implemented progressive distillation can maintain fidelity and diversity at reasonable levels despite the reduction in the number of steps.
+In this second experimental setting, we aim to understand the behavior of the different approaches in terms of fidelity and diversity when reducing the number of sampling steps. To better capture these two properties, we use precision and recall of the generated data (see Table 3). The main goal is to compare how naive step pruning degrades performance, while techniques such as the implemented progressive distillation can maintain fidelity and diversity at reasonable levels despite the reduction in the number of steps.
 
 
 | Method | Steps | FID | IS | Precision | Recall |
@@ -132,28 +130,22 @@ In this second experimental setting, we aim to understand the behavior of the di
 | **DDIM + Progressive Distillation** | 25 | 14.1555 | 8.3367 ± 0.3336 | 0.650 | 0.594 |
 | | 12 | 12.9952 | 8.4135 ± 0.2914 | 0.643 | 0.591 |
 | | 8 | 15.9995 | 8.6021 ± 0.4500 | 0.626 | 0.592 |
-| **LoRA Progressive Distillation** | 25 | 14.1555 | 8.3367 ± 0.3336 | 0.650 | 0.594 |
-| | 12 | 12.9952 | 8.4135 ± 0.2914 | 0.643 | 0.591 |
-| | 8 | 15.9995 | 8.6021 ± 0.4500 | 0.626 | 0.592 |
+| **LoRA Progressive Distillation** | 25 | 17.271 | 8.470 ± 0.350 | 0.656 | 0.592 |
+| | 12 | 18.343 | 8.410 ± 0.334 | 0.650 | 0.584 |
+| | 8 | 18.479 | 8.350 ± 0.333 | 0.656 | 0.575 |
 | **Lightweight Progressive Distillation** | 50 | 14.1555 | 8.3367 ± 0.3336 | 0.650 | 0.594 |
 | | 20 | 12.9952 | 8.4135 ± 0.2914 | 0.643 | 0.591 |
 
-*Table 5: Precision–Recall Comparison for Different Approaches and Step Counts*
+*Table 3: Precision–Recall Comparison for Different Approaches and Step Counts*
 
-> add real results for LoRA and lightweight progressive distillation
-
-- DDIM as the sampler + progressive distillation to compensate for quality loss at fewer steps
-
-
-
-> step reduction handled gracefully in DDPM. Explain/mention how it is done
+> add real results for lightweight progressive distillation
 
 
 The results for DDPM serve as compelling motivation for our approach. Observe that reducing the step count from 1000 down to 100 steps in the base model substantially impacts performance: it leads to a sixfold increase in the FID score and a halving of the diversity (recall) of the model output. When we further reduce this number to just 8 steps, the model's performance is completely compromised; it consistently generates the same noise images, resulting in zero recall and poor precision metrics.
 
 In relation to the DDIM sampling technique, there's a notable preservation of performance when using up to 25-steps, but this significantly deteriorates for configurations with 12 and 8 steps. The DDIM method demonstrates greater resilience towards substantial reductions in step counts compared to DDPM; however, it begins to show signs of struggle for step counts lower than 25.
 
-Finally, Progressive Distillation is able to surpass the 25-step DDIM baseline while maintaining strong performance at sampling budgets as low as 8 steps. Although not shown in Table 5, models with even fewer sampling steps were also evaluated; however, performance degraded significantly across all approaches, leading to noticeably worse sample quality.
+Finally, Progressive Distillation is able to surpass the 25-step DDIM baseline while maintaining strong performance at sampling budgets as low as 8 steps. Although not shown in Table 3, models with even fewer sampling steps were also evaluated; however, performance degraded significantly across all approaches, leading to noticeably worse sample quality.
 
 
 > analyze the results for LoRA and the other!!!!
@@ -228,30 +220,29 @@ Despite its structural sophistication, this distillation pipeline failed to achi
 ### A.3 Inference-Time Benchmark
 For the evaluation of inference time for each model, we perform 10 warm-up runs followed by 50 measured runs per configuration. After collecting the results, we compute the median execution time across the 50 measured runs, as well as the milliseconds per image and images per second metrics (see Table A.1). All experiments are conducted on a single NVIDIA RTX 5000 Ada Generation GPU.
 
-
-| model       | steps | batch | median (ms) | ms/img  | img/s |
-|-------------|-------|-------|-------------|---------|--------|
-| **DDPM**  | 1000    | 1     | 4569.45      | 4569.45 | 0.2    |
-|  |    | 2     | 4627.17      | 2309.738  | 0.4    |
-|  |    | 4     | 4643.33      | 1158.659 | 0.9    |
-|  |    | 8     | 4623.63      | 577.302 | 1.7   |
-|  |    | 16     | 7274.28      | 452.530 | 2.2    |
-|  |    | 32     | 13076.46      | 407.420 | 2.5    |
-|  |    | 64     | 27487.19     | 429.487 | 2.3    |
-| **DDIM**  | 25    | 1     |  114.46     |  114.46 | 8.7     |
-|  |    | 2     | 114.62       | 57.312  | 17.4   |
-|  |    | 4     | 116.65     | 29.163  | 34.3   |
-|  |    | 8     | 113.78       | 14.222 | 70.3   |
-|  |    | 16     | 178.09       | 11.131 | 89.8   |
-|  |    | 32     | 313.26       | 9.789 | 102.2    |
-|  |    | 64     | 712.84    | 11.138  | 89.8    |
-| **DDIM + Progressive Distillation**  | 25    | 1     | 111.22      | 111.219 | 9.0    |
-|   |     | 2     | 113.54      | 56.768  | 17.6   |
-|   |     | 4     | 114.64      | 28.659  | 34.9   |
-|   |     | 8     | 113.12      | 14.140  | 70.7   |
-|   |     | 16    | 172.97      | 10.811  | 92.5   |
-|   |     | 32    | 310.40      | 9.700   | 103.1  |
-|   |      | 64    | 697.32      | 10.896  | 91.8   |
+| model | steps | batch | median (ms) | ms/img | img/s |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **DDPM** | 1000 | 1 | 4569.45 | 4569.45 | 0.2 |
+| | | 2 | 4627.17 | 2309.738 | 0.4 |
+| | | 4 | 4643.33 | 1158.659 | 0.9 |
+| | | 8 | 4623.63 | 577.302 | 1.7 |
+| | | 16 | 7274.28 | 452.530 | 2.2 |
+| | | 32 | 13076.46 | 407.420 | 2.5 |
+| | | 64 | 27487.19 | 429.487 | 2.3 |
+| **DDIM** | 25 | 1 | 114.46 | 114.46 | 8.7 |
+| | | 2 | 114.62 | 57.312 | 17.4 |
+| | | 4 | 116.65 | 29.163 | 34.3 |
+| | | 8 | 113.78 | 14.222 | 70.3 |
+| | | 16 | 178.09 | 11.131 | 89.8 |
+| | | 32 | 313.26 | 9.789 | 102.2 |
+| | | 64 | 712.84 | 11.138 | 89.8 |
+| **DDIM + Progressive Distillation** | 25 | 1 | 111.22 | 111.219 | 9.0 |
+| | | 2 | 113.54 | 56.768 | 17.6 |
+| | | 4 | 114.64 | 28.659 | 34.9 |
+| | | 8 | 113.12 | 14.140 | 70.7 |
+| | | 16 | 172.97 | 10.811 | 92.5 |
+| | | 32 | 310.40 | 9.700 | 103.1 |
+| | | 64 | 697.32 | 10.896 | 91.8 |
 | **DDIM + Progressive Distillation**  | 12    | 1     | 53.74       | 53.738  | 18.6   |
 |   |     | 2     | 54.31       | 27.157  | 36.8   |
 |   |    | 4     | 54.89       | 13.723  | 72.9   |
@@ -266,6 +257,25 @@ For the evaluation of inference time for each model, we perform 10 warm-up runs 
 |  |    | 16    | 57.56       | 3.598   | 278.0  |
 |  |    | 32    | 101.10      | 3.159   | 316.5  |
 |  |     | 64    | 212.76      | 3.324   | 300.8  |
+| **LoRA Progressive Distillation** | 25 | 1 | 188.78 | 188.782 | 5.3 |
+| |  | 4 | 193.67 | 48.419 | 20.7 |
+| |  | 8 | 192.89 | 24.112 | 41.5 |
+| |  | 16 | 225.64 | 14.102 | 70.9 |
+| |  | 32 | 399.95 | 12.498 | 80.0 |
+| |  | 64 | 879.70 | 13.745 | 72.8 |
+| **LoRA Progressive Distillation**  | 12 | 1 | 91.09 | 91.093 | 11.0 |
+| |  | 4 | 93.61 | 23.403 | 42.7 |
+| |  | 8 | 93.24 | 11.655 | 85.8 |
+| |  | 16 | 110.70 | 6.919 | 144.5 |
+| |  | 32 | 191.76 | 5.993 | 166.9 |
+| |  | 64 | 407.05 | 6.360 | 157.2 |
+| **LoRA Progressive Distillation** | 8 | 1 | 60.78 | 60.777 | 16.5 |
+| |  | 4 | 63.96 | 15.989 | 62.5 |
+| |  | 8 | 62.88 | 7.860 | 127.2 |
+| |  | 16 | 74.16 | 4.635 | 215.8 |
+| |  | 32 | 129.23 | 4.038 | 247.6 |
+| |  | 64 | 271.22 | 4.238 | 236.0 |
+
 
 *Table A.1: Inference time at different batch sizes*
 
