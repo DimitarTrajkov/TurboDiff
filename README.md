@@ -14,6 +14,8 @@ generation, but their iterative sampling process is notoriously slow and computa
 
 This project investigates methods for accelerating inference in CIFAR-10 diffusion models while preserving generative quality. Specifically, we leverage Progressive Distillation to compress a multi-step teacher model into a few-step student. Beyond standard distillation, we explore performance optimization through Low-Rank Adaptation (LoRA) and evaluate low-precision inference via post-training quantization. Our best model achieves a 129× reduction in inference time, while only incurring a ~14% degradation in FID (≈ +1 point).
 
+The project presentation can be viewed [here](https://docs.google.com/presentation/d/1bskoTAs9aXKYNroxouZjTW7QAVdcStrMH-Xa_65ipoY/edit?usp=sharing).
+
 ## Methodology
 
 While multiple approaches have been tested, our primary line of work is built around Denoising Diffusion Implicit Models (DDIM) [2] and Progressive Distillation [1]. This methodology is detailed in _DDIM and Progressive Distillation_. As extensions of this baseline, we explored training-time improvements, detailed in _LoRA Progressive Distillation_, as well as an additional direction focused on reducing the original model size, detailed in _Lighweight UNet_. While this report focuses primarily on these core methodologies, other investigated directions are documented in Appendix A.2. Additionally, a detailed description of how the metrics used in this work are computed can be found in Appendix A.1.
@@ -22,7 +24,6 @@ While multiple approaches have been tested, our primary line of work is built ar
 
 In this approach, we started off with the official Google implementation of the DDPM paper [4], which uses 1000 sampling steps, and built a DDIM sampling procedure on top of it. This allowed us to reduce the number of steps to roughly 25–30 without retraining the model and with only a minor sacrifice in performance. Once we achieved that, we iteratively reduced the number of steps through Progressive Distillation, first training a 25-step student model on the base DDPM with DDIM sampling, and then moving down to 12 and 8 steps (see Figure 2). Our fastest model achieves a x129.3 speedup during inference, while maintaining an FID of 15.9995 and an IS of 8.6021.
 
-The project presentation can be viewed [here](https://docs.google.com/presentation/d/1bskoTAs9aXKYNroxouZjTW7QAVdcStrMH-Xa_65ipoY/edit?usp=sharing).
 
 ![Pipeline](docs/diagram.png)
 
